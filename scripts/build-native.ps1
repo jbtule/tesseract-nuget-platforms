@@ -17,16 +17,23 @@ if (-not $Rid) {
     exit 1
 }
 
+# For win-arm64, CMAKE_SYSTEM_NAME/_PROCESSOR are passed explicitly to
+# Tesseract's configure below: we're not doing a "real" CMake cross-compile
+# (just pointing cl.exe at the ARM64 toolset via vcvars on an x64 host), so
+# by default CMake still reports the host's AMD64 -- and Tesseract's own
+# CMakeLists branches its SIMD codepath on that value, wrongly enabling x86
+# AVX/SSE intrinsics for the ARM64 target, which don't exist there and fail
+# to compile (__cpuid/_xgetbv "identifier not found"). Setting
+# CMAKE_SYSTEM_PROCESSOR alone doesn't stick -- CMake only honors it once
+# CMAKE_CROSSCOMPILING is true, which itself is only triggered by also
+# setting CMAKE_SYSTEM_NAME explicitly (even to the same OS name).
+$CrossCompileArgs = @()
 switch ($Rid) {
-    # CMAKE_SYSTEM_PROCESSOR is passed explicitly to Tesseract's configure
-    # below: we're not doing a "real" CMake cross-compile (just pointing
-    # cl.exe at the ARM64 toolset via vcvars on an x64 host), so CMake would
-    # otherwise still report the host's AMD64, and Tesseract's CMakeLists
-    # branches its SIMD codepath on this value -- it'd wrongly enable x86
-    # AVX/SSE intrinsics for the ARM64 target, which don't exist there and
-    # fail to compile (__cpuid/_xgetbv "identifier not found").
-    "win-x64"   { $Triplet = "x64-windows";   $SystemProcessor = "AMD64" }
-    "win-arm64" { $Triplet = "arm64-windows"; $SystemProcessor = "arm64" }
+    "win-x64"   { $Triplet = "x64-windows" }
+    "win-arm64" {
+        $Triplet = "arm64-windows"
+        $CrossCompileArgs = @("-DCMAKE_SYSTEM_NAME=Windows", "-DCMAKE_SYSTEM_PROCESSOR=ARM64")
+    }
     default { Write-Error "unknown RID: $Rid"; exit 1 }
 }
 
@@ -79,8 +86,8 @@ cmake -S "$Work/tesseract" -B "$Work/tesseract/build" -G Ninja `
   -DCMAKE_PREFIX_PATH="$Work/install" `
   -DLeptonica_DIR="$Work/install/lib/cmake/leptonica" `
   -DCMAKE_INSTALL_PREFIX="$Work/install" `
-  -DCMAKE_SYSTEM_PROCESSOR="$SystemProcessor" `
-  -DSW_BUILD=OFF
+  -DSW_BUILD=OFF `
+  @CrossCompileArgs
 cmake --build "$Work/tesseract/build" --parallel
 cmake --install "$Work/tesseract/build"
 
