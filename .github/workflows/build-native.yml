@@ -34,13 +34,17 @@ jobs:
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build autoconf-archive
       - run: bash scripts/build-native.sh linux-x64
-      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
-        run: bash scripts/smoketest.sh linux-x64
+      # Uploaded before the smoke test, not after: a smoke test failure
+      # shouldn't block being able to pull and inspect the native build
+      # that actually succeeded -- this is what let us debug the Windows
+      # DLL issues instead of only having log text to go on.
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux-x64
           path: stage/linux-x64
           if-no-files-found: error
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        run: bash scripts/smoketest.sh linux-x64
 
   linux-arm64:
     runs-on: ubuntu-22.04-arm # real ARM64 hardware -- no cross-compile needed, unlike win-arm64
@@ -61,13 +65,13 @@ jobs:
       # fallback.
       - uses: lukka/get-cmake@latest
       - run: bash scripts/build-native.sh linux-arm64
-      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
-        run: bash scripts/smoketest.sh linux-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux-arm64
           path: stage/linux-arm64
           if-no-files-found: error
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        run: bash scripts/smoketest.sh linux-arm64
 
   osx-arm64:
     runs-on: macos-14 # Apple Silicon image
@@ -80,13 +84,13 @@ jobs:
           dotnet-version: "8.0.x"
       - run: brew install ninja autoconf-archive
       - run: bash scripts/build-native.sh osx-arm64
-      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
-        run: bash scripts/smoketest.sh osx-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: native-osx-arm64
           path: stage/osx-arm64
           if-no-files-found: error
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        run: bash scripts/smoketest.sh osx-arm64
 
   win-x64:
     runs-on: windows-latest
@@ -98,14 +102,14 @@ jobs:
         with:
           dotnet-version: "8.0.x"
       - run: pwsh scripts/build-native.ps1 win-x64
-      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
-        shell: bash
-        run: bash scripts/smoketest.sh win-x64
       - uses: actions/upload-artifact@v4
         with:
           name: native-win-x64
           path: stage/win-x64
           if-no-files-found: error
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        shell: bash
+        run: bash scripts/smoketest.sh win-x64
 
   # windows-11-arm is real ARM64 hardware with a native ARM64 MSVC toolset
   # (Microsoft.VisualStudio.Component.VC.Tools.ARM64, confirmed via
@@ -124,11 +128,11 @@ jobs:
         with:
           dotnet-version: "8.0.x"
       - run: pwsh scripts/build-native.ps1 win-arm64
-      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
-        shell: bash
-        run: bash scripts/smoketest.sh win-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: native-win-arm64
           path: stage/win-arm64
           if-no-files-found: error
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        shell: bash
+        run: bash scripts/smoketest.sh win-arm64
