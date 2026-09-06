@@ -85,6 +85,34 @@ it's vendored here so our packaging can move forward without waiting on
 review, and this section should be updated (or removed) once/if it lands
 upstream.
 
+## Backlog: Blazor WASM (`browser-wasm`)
+
+Not started, and out of scope for this repo's current packaging model. Notes
+for when it comes up:
+
+- `browser-wasm` has no `dlopen`/`LoadLibrary`-style dynamic loader, so the
+  `dlopen`/`dlsym`/`LoadLibrary` interop layer this repo's
+  `runtimes/<rid>/native` packages rely on (`LibraryLoader` /
+  `ILibraryLoaderLogic` in `vendor/tesseract`) doesn't apply. A wasm build
+  would need to be statically linked at `dotnet publish` time
+  (`<NativeFileReference>`), which is a fundamentally different packaging
+  shape — not a 5th RID for `Tesseract.Native`.
+- Real prior art exists for the native-code side:
+  [tesseract-wasm](https://github.com/robertknight/tesseract-wasm) /
+  [tesseract.js](https://github.com/naptha/tesseract.js) already compile
+  Tesseract+Leptonica with Emscripten.
+- The payoff worth chasing, if/when this gets picked up: extending
+  `vendor/tesseract` with a third `ILibraryLoaderLogic`-equivalent backend
+  for the static-link case would let the *same* `TesseractEngine`/`Page`
+  C# API used on desktop/server work unmodified in a Blazor WASM app —
+  genuinely one API surface, not a JS-interop-shaped facade. That's a
+  multi-day effort on its own (Emscripten build + a new interop backend),
+  separate from win/linux/mac native packaging here.
+- Until then, the pragmatic answer for a `net10.0-browser` app needing OCR
+  is what's already in place elsewhere: call `tesseract.js` via JS interop,
+  optionally hidden behind a small internal C# facade shaped like
+  `TesseractEngine` so callers don't see the JS interop plumbing.
+
 ## How the build works
 
 - **`versions.env`** is the single source of truth: which Leptonica/Tesseract
