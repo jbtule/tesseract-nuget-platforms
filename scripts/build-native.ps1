@@ -43,10 +43,22 @@ switch ($Rid) {
         # ARM64 test binary on this x64 host to check Leptonica's TIFF
         # support; 0 (success) reflects that our Leptonica build does have
         # real TIFF support, from vcpkg's tiff port.
+        # HAVE_NEON is set to TRUE by CMakeLists' arm64 branch, but never
+        # actually passed to the compiler via add_definitions (unlike every
+        # x86 SIMD flag, which does get one) -- and dotproductneon.cpp /
+        # intsimdmatrixneon.cpp / simddetect.cpp all guard their NEON code
+        # on "#if defined(HAVE_NEON) || defined(__aarch64__)". __aarch64__
+        # is a GCC/Clang macro that MSVC's ARM64 target never defines (MSVC
+        # uses _M_ARM64 instead), so without this they silently compile to
+        # empty translation units and every NEON symbol goes unresolved at
+        # link time. Looks like a genuine gap in upstream Tesseract's
+        # MSVC+ARM64 CMake support; defining the macro ourselves works
+        # around it without patching source.
         $CrossCompileArgs = @(
             "-DCMAKE_SYSTEM_NAME=Windows",
             "-DCMAKE_SYSTEM_PROCESSOR=arm64",
-            "-DLEPT_TIFF_RESULT=0"
+            "-DLEPT_TIFF_RESULT=0",
+            "-DCMAKE_CXX_FLAGS=/DHAVE_NEON"
         )
     }
     default { Write-Error "unknown RID: $Rid"; exit 1 }
