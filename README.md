@@ -131,6 +131,26 @@ Linux:
 - Same shape of effort as the WASM backlog item above: a real but separate
   track, not a matrix entry.
 
+## Backlog: iOS (`ios-arm64` / `iossimulator-arm64`/`-x64`)
+
+Also not started, also out of scope for the current packaging model, and
+arguably the hardest of the three backlog items:
+
+- Same OS-detection gap as Android — `SystemManager.GetOperatingSystem()`
+  doesn't recognize iOS and throws.
+- Unlike desktop/server, iOS doesn't really support `CustomSearchPath`-style
+  runtime `dlopen` of arbitrary files at all for App Store distribution —
+  native code has to be statically linked (or embedded as a properly
+  code-signed `.xcframework`) at build time, so this needs the same kind of
+  static-link interop backend the WASM item above would need, not another
+  `ILibraryLoaderLogic` that calls `dlopen`.
+- Three RIDs, not one: `ios-arm64` (device) plus `iossimulator-arm64` and
+  `iossimulator-x64` (Apple Silicon and Intel Mac simulator hosts), each a
+  separate cross-compile.
+- Real prior art exists (e.g. gali8/Tesseract-OCR-iOS), so the
+  Tesseract/Leptonica build side is solved territory — the work is the
+  static-link `.xcframework` packaging plus the interop backend.
+
 ## How the build works
 
 - **`versions.env`** is the single source of truth: which Leptonica/Tesseract
