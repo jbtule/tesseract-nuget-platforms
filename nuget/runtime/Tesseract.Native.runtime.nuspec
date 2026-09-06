@@ -12,6 +12,6 @@
   </metadata>
   <files>
     <file src="$stage$/$rid$/native/**/*.*" target="runtimes/$rid$/native" />
-    <file src="$stage$/$rid$/*LICENSE*.txt" target="" />
+    <file src="$stage$/$rid$/licenses/**/*.*" target="licenses" />
   </files>
 </package>

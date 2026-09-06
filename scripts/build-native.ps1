@@ -41,26 +41,37 @@ git clone --branch $VCPKG_REF --depth 1 https://github.com/microsoft/vcpkg "$Wor
 
 $Installed = "$Work/vcpkg/installed/$Triplet"
 
+# Copy every DLL vcpkg installed, not just tesseract*/leptonica*: with a
+# dynamic triplet, Leptonica's own codec dependencies (giflib, libjpeg-turbo,
+# openjpeg, libpng, zlib, tiff, libwebp) and Tesseract's own mandatory
+# curl/libarchive dependencies (each with further transitive deps of their
+# own) all become separate DLLs that have to be present at runtime too --
+# confirmed missing ones (started with libgif on macOS) cause a silent
+# dlopen/LoadLibrary failure, not a clear error, since InteropDotNet's
+# loader logic swallows the underlying exception.
+Copy-Item "$Installed/bin/*.dll" $Stage
+
 # Get-ChildItem on a non-matching wildcard returns nothing without erroring,
 # so check explicitly rather than silently shipping an empty/partial package
 # (this bit us for real once already, back when this script used raw CMake).
-function Copy-RequiredDlls([string]$Pattern, [string]$Label) {
-    $files = Get-ChildItem "$Installed/bin/$Pattern" -ErrorAction SilentlyContinue
+function Assert-Copied([string]$Pattern, [string]$Label) {
+    $files = Get-ChildItem "$Stage/$Pattern" -ErrorAction SilentlyContinue
     if (-not $files) {
-        Write-Error "No $Label DLLs matched '$Pattern' under $Installed/bin -- vcpkg install must have failed silently."
+        Write-Error "No $Label DLLs matched '$Pattern' in $Stage after copying $Installed/bin -- vcpkg install must have failed silently."
         exit 1
     }
-    Copy-Item $files.FullName $Stage
 }
-Copy-RequiredDlls "tesseract*.dll" "tesseract"
-Copy-RequiredDlls "leptonica*.dll" "leptonica"
+Assert-Copied "tesseract*.dll" "tesseract"
+Assert-Copied "leptonica*.dll" "leptonica"
 
-Copy-Item "$Installed/share/tesseract/copyright" "$Root/stage/$Rid/tesseract-LICENSE.txt" -ErrorAction SilentlyContinue
-Copy-Item "$Installed/share/leptonica/copyright" "$Root/stage/$Rid/leptonica-LICENSE.txt" -ErrorAction SilentlyContinue
+# Best-effort: grab every dependency's license text too, not just
+# tesseract/leptonica's own -- there are a lot more of them now.
+$LicenseDir = "$Root/stage/$Rid/licenses"
+New-Item -ItemType Directory -Path $LicenseDir -Force | Out-Null
+Get-ChildItem "$Installed/share/*/copyright" -ErrorAction SilentlyContinue | ForEach-Object {
+    $pkg = Split-Path (Split-Path $_.FullName -Parent) -Leaf
+    Copy-Item $_.FullName "$LicenseDir/$pkg.txt"
+}
 
 Write-Host "== Staged $Rid (tesseract/leptonica versions from vcpkg $VCPKG_REF) =="
 Get-ChildItem $Stage
-
-# NOTE: confirm the exact DllImport base name charlesw/tesseract's interop
-# layer expects (e.g. "libtesseract" vs "tesseract5") before first release
-# and rename/copy the DLL here to match if needed.
