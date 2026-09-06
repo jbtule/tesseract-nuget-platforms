@@ -12,8 +12,8 @@
     <readme>README.md</readme>
   </metadata>
   <files>
-    <file src="$stage$/$rid$/native/**/*.*" target="runtimes/$rid$/native" />
-    <file src="$stage$/$rid$/licenses/**/*.*" target="licenses" />
+    <file src="$stage$/$rid$/native/*.*" target="runtimes/$rid$/native" />
+    <file src="$stage$/$rid$/licenses/*.*" target="licenses" />
     <file src="nuget/runtime/README.md" target="README.md" />
   </files>
 </package>
