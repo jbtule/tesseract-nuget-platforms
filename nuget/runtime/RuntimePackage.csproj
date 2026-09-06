@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Packs one Tesseract.Native.runtime.<rid> package. All of id/rid/version
+    /stage etc. come from -p:NuspecProperties passed by the release workflow
+    so this one project + nuspec serves all four RIDs.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <NoWarn>$(NoWarn);NU5128;CS8017</NoWarn>
+    <NuspecFile>Tesseract.Native.runtime.nuspec</NuspecFile>
+    <NuspecBasePath>$(MSBuildProjectDirectory)</NuspecBasePath>
+  </PropertyGroup>
+
+</Project>

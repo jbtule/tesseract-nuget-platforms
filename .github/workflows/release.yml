@@ -1,0 +1,82 @@
+name: Release
+
+# Push a tag "vX.Y.Z" where X.Y.Z matches PACKAGE_VERSION in versions.env
+# to build every platform's native libraries and publish the resulting
+# NuGet packages to nuget.org. Requires a NUGET_API_KEY repo secret.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-native:
+    uses: ./.github/workflows/build-native.yml
+
+  pack-and-publish:
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Load versions.env
+        run: cat versions.env >> "$GITHUB_ENV"
+
+      - name: Verify tag matches PACKAGE_VERSION
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Tag v$tag does not match PACKAGE_VERSION=$PACKAGE_VERSION in versions.env" >&2
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: stage-raw
+
+      - name: Lay out staged native assets as stage/<rid>/...
+        run: |
+          set -euo pipefail
+          mkdir -p stage
+          for d in stage-raw/native-*; do
+            rid="$(basename "$d" | sed 's/^native-//')"
+            mv "$d" "stage/$rid"
+          done
+          find stage -maxdepth 2
+
+      - name: Pack runtime packages
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          for rid in win-x64 linux-x64 osx-x64 osx-arm64; do
+            dotnet pack nuget/runtime/RuntimePackage.csproj -c Release -o out \
+              -p:NuspecProperties="id=Tesseract.Native.runtime.$rid;rid=$rid;version=$PACKAGE_VERSION;tesseractVersion=$TESSERACT_VERSION;leptonicaVersion=$LEPTONICA_VERSION;repoUrl=$repo_url;stage=$GITHUB_WORKSPACE/stage"
+          done
+
+      - name: Pack meta package
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          dotnet pack nuget/meta/Tesseract.Native.csproj -c Release -o out \
+            -p:NuspecProperties="version=$PACKAGE_VERSION;repoUrl=$repo_url"
+
+      - name: Push to nuget.org
+        run: |
+          set -euo pipefail
+          for f in out/*.nupkg; do
+            dotnet nuget push "$f" \
+              --api-key "${{ secrets.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: out/*.nupkg

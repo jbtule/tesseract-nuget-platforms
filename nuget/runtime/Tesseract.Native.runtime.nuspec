@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <authors>jay@tuley.name</authors>
+    <description>Native Tesseract OCR ($tesseractVersion$) + Leptonica ($leptonicaVersion$) shared libraries for $rid$, built from source in GitHub Actions. Intended for use with charlesw/tesseract's TesseractEnviornment.CustomSearchPath, or any consumer that restores a runtimes/$rid$/native asset. You normally want the Tesseract.Native meta-package instead of this one directly.</description>
+    <license type="expression">Apache-2.0</license>
+    <projectUrl>$repoUrl$</projectUrl>
+    <repository type="git" url="$repoUrl$" />
+    <tags>tesseract leptonica ocr native runtime $rid$</tags>
+  </metadata>
+  <files>
+    <file src="$stage$/$rid$/native/**/*.*" target="runtimes/$rid$/native" />
+    <file src="$stage$/$rid$/*LICENSE*.txt" target="" />
+  </files>
+</package>

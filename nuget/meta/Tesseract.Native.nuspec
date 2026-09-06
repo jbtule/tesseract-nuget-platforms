@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>Tesseract.Native</id>
+    <version>$version$</version>
+    <authors>jay@tuley.name</authors>
+    <description>
+      Cross-platform native Tesseract OCR + Leptonica binaries (win-x64, linux-x64,
+      osx-x64, osx-arm64), built from source in GitHub Actions. Installing this
+      package restores the runtimes/&lt;rid&gt;/native asset for whichever platform
+      you're building/publishing for. Point charlesw/tesseract's
+      TesseractEnviornment.CustomSearchPath (or your own native search path) at
+      that folder in your output directory to use it.
+    </description>
+    <license type="expression">Apache-2.0</license>
+    <projectUrl>$repoUrl$</projectUrl>
+    <repository type="git" url="$repoUrl$" />
+    <tags>tesseract leptonica ocr native runtime meta-package</tags>
+    <dependencies>
+      <group targetFramework="netstandard2.0">
+        <dependency id="Tesseract.Native.runtime.win-x64" version="$version$" include="Runtime" />
+        <dependency id="Tesseract.Native.runtime.linux-x64" version="$version$" include="Runtime" />
+        <dependency id="Tesseract.Native.runtime.osx-x64" version="$version$" include="Runtime" />
+        <dependency id="Tesseract.Native.runtime.osx-arm64" version="$version$" include="Runtime" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

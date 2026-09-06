@@ -1,0 +1,65 @@
+name: Build native libraries
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "versions.env"
+      - ".github/workflows/build-native.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "versions.env"
+      - ".github/workflows/build-native.yml"
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build autoconf-archive
+      - run: bash scripts/build-native.sh linux-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-x64
+          path: stage/linux-x64
+          if-no-files-found: error
+
+  osx-x64:
+    runs-on: macos-13 # last Intel macOS image
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install ninja autoconf-archive
+      - run: bash scripts/build-native.sh osx-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-osx-x64
+          path: stage/osx-x64
+          if-no-files-found: error
+
+  osx-arm64:
+    runs-on: macos-14 # Apple Silicon image
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install ninja autoconf-archive
+      - run: bash scripts/build-native.sh osx-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-osx-arm64
+          path: stage/osx-arm64
+          if-no-files-found: error
+
+  win-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pwsh scripts/build-native.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-win-x64
+          path: stage/win-x64
+          if-no-files-found: error
