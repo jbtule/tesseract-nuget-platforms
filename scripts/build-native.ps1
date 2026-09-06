@@ -75,12 +75,23 @@ cmake -S "$Work/tesseract" -B "$Work/tesseract/build" -G Ninja `
   -DVCPKG_TARGET_TRIPLET=$Triplet `
   -DCMAKE_PREFIX_PATH="$Work/install" `
   -DLeptonica_DIR="$Work/install/lib/cmake/leptonica" `
-  -DCMAKE_INSTALL_PREFIX="$Work/install"
+  -DCMAKE_INSTALL_PREFIX="$Work/install" `
+  -DSW_BUILD=OFF
 cmake --build "$Work/tesseract/build" --parallel
 cmake --install "$Work/tesseract/build"
 
-Copy-Item "$Work/install/bin/tesseract*.dll" $Stage
-Copy-Item "$Work/install/bin/leptonica*.dll" $Stage
+# Copy-Item on a non-matching wildcard neither copies anything nor errors,
+# so check explicitly rather than silently shipping an empty/partial package.
+function Copy-RequiredDlls([string]$Pattern, [string]$Label) {
+    $files = Get-ChildItem "$Work/install/bin/$Pattern" -ErrorAction SilentlyContinue
+    if (-not $files) {
+        Write-Error "No $Label DLLs matched '$Pattern' under $Work/install/bin -- build/install must have failed silently."
+        exit 1
+    }
+    Copy-Item $files.FullName $Stage
+}
+Copy-RequiredDlls "tesseract*.dll" "tesseract"
+Copy-RequiredDlls "leptonica*.dll" "leptonica"
 
 Copy-Item "$Work/leptonica/leptonica-license.txt" "$Root/stage/$Rid/leptonica-LICENSE.txt" -ErrorAction SilentlyContinue
 Copy-Item "$Work/tesseract/LICENSE" "$Root/stage/$Rid/tesseract-LICENSE.txt" -ErrorAction SilentlyContinue

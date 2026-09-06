@@ -85,7 +85,8 @@ cmake -S "$WORK/tesseract" -B "$WORK/tesseract/build" \
   -DLeptonica_DIR="$WORK/install/lib/cmake/leptonica" \
   -DCMAKE_OSX_ARCHITECTURES="$OSX_ARCH" \
   -DCMAKE_INSTALL_PREFIX="$WORK/install" \
-  -DCMAKE_INSTALL_RPATH='$ORIGIN'
+  -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+  -DSW_BUILD=OFF
 cmake --build "$WORK/tesseract/build" --config Release -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
 cmake --install "$WORK/tesseract/build"
 
