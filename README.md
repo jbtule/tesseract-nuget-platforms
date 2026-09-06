@@ -19,7 +19,7 @@ Nobody publishes a full win/linux/mac set:
   Docker.
 
 This repo fills the gap: one GitHub Actions matrix that builds Leptonica +
-Tesseract for `win-x64`, `win-arm64`, `linux-x64`, and `osx-arm64` via
+Tesseract for `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, and `osx-arm64` via
 vcpkg, and publishes them as NuGet packages that follow the standard
 [RID-specific runtime package](https://learn.microsoft.com/nuget/create-packages/supporting-multiple-target-frameworks#architecture-specific-packages)
 pattern.
@@ -32,6 +32,7 @@ pattern.
 | `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native` |
 | `Tesseract.Native.runtime.win-arm64` | same, cross-compiled by vcpkg from the x64 runner host, under `runtimes/win-arm64/native` |
 | `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
+| `Tesseract.Native.runtime.linux-arm64` | same, native-built on a real ARM64 runner (no cross-compile needed), under `runtimes/linux-arm64/native` |
 | `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native`, for Apple Silicon |
 | `Tesseract.CrossPlatform` | The [charlesw/tesseract](https://github.com/charlesw/tesseract) C# wrapper itself, built from the patched fork in `vendor/tesseract` (see "Vendored patches" below), depending on `Tesseract.Native`. **API-compatible drop-in replacement for the stock `Tesseract` package** — same namespace/types. Install this *instead of* `Tesseract`, not alongside it. |
 
@@ -215,19 +216,22 @@ inherit that maintenance rather than re-deriving each fix ourselves.
   comments at the top of each script for why we consume vcpkg's ports
   rather than building from tesseract/leptonica's own source tags directly.
 - **`.github/workflows/build-native.yml`** runs those scripts across a
-  4-way matrix (win-x64, win-arm64, linux-x64, osx-arm64) and uploads each
+  5-way matrix (win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64), each
+  followed by a real end-to-end smoke test (see below), and uploads each
   platform's staged output as a build artifact. It also runs on every
   PR/push touching the scripts, so build breakage surfaces before a
   release. vcpkg handles the win-arm64 cross-compile from the x64
-  `windows-latest` runner internally — no manual toolchain setup needed.
+  `windows-latest` runner internally — no manual toolchain setup needed;
+  linux-arm64 needs no cross-compile at all, running natively on GitHub's
+  hosted `ubuntu-22.04-arm` runner.
 - **`.github/workflows/release.yml`** runs on a `vX.Y.Z` tag push: calls
-  `build-native.yml`, downloads all four artifacts, packs the four runtime
+  `build-native.yml`, downloads all five artifacts, packs the five runtime
   `.nupkg`s plus the `Tesseract.Native` meta `.nupkg` (via
   `nuget/runtime/RuntimePackage.csproj` + `Tesseract.Native.runtime.nuspec`,
-  reused for all four RIDs), builds `vendor/tesseract`'s wrapper assembly
+  reused for all five RIDs), builds `vendor/tesseract`'s wrapper assembly
   and packs it as `Tesseract.CrossPlatform` (via
   `nuget/wrapper/Tesseract.CrossPlatform.{csproj,nuspec}`), and pushes all
-  six to nuget.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
+  seven to nuget.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
   (OIDC) — no long-lived API key stored in the repo. Each nuspec's `$token$`
   placeholders are filled in with `sed` into a temp file, then packed via
   `-p:NuspecFile=<path>` — not `-p:NuspecProperties="k1=v1;k2=v2"`, which
@@ -277,12 +281,10 @@ and single-use, requested right before each push.
 - No `osx-x64` (Intel Mac): dropped deliberately — declining relevance plus
   GH's `macos-13` runner pool queuing for 15+ minutes before even starting a
   build. `win-arm64` was added in its place as the more useful target.
-- No `linux-arm64` yet (deferred per current scope). Adding one is a matrix
-  entry + a triplet in the build script, same shape as the existing
-  linux-x64 job.
-- No GPG/package signing, no SBOM generation, no automated smoke test that
-  actually loads the built library from a sample .NET app — worth adding
-  before treating this as production-grade.
+- No GPG/package signing, no SBOM generation — worth adding before treating
+  this as production-grade. (An automated end-to-end smoke test — real OCR
+  via the actual packaged output, every platform, every build — is now in
+  place; see "How the build works".)
 - License notices: Leptonica and Tesseract are both permissively licensed
   (BSD-2-Clause-ish / Apache-2.0), and their license files are copied into
   each package, but double-check the codec dependencies' licenses

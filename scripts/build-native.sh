@@ -2,7 +2,7 @@
 # Builds Leptonica + Tesseract via vcpkg's own ports for one RID and stages
 # the resulting shared libraries under stage/<rid>/native.
 #
-# Usage: scripts/build-native.sh <linux-x64|osx-arm64>
+# Usage: scripts/build-native.sh <linux-x64|linux-arm64|osx-arm64>
 #
 # We consume vcpkg's tesseract/leptonica ports rather than building from
 # their upstream source tags ourselves: vcpkg's maintainers already carry
@@ -14,7 +14,7 @@
 # loading via CustomSearchPath.
 set -euo pipefail
 
-RID="${1:?usage: build-native.sh <linux-x64|osx-arm64>}"
+RID="${1:?usage: build-native.sh <linux-x64|linux-arm64|osx-arm64>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
 source "$ROOT/versions.env"
@@ -24,8 +24,9 @@ STAGE="$ROOT/stage/$RID/native"
 mkdir -p "$STAGE"
 
 case "$RID" in
-  linux-x64)  TRIPLET=x64-linux-dynamic ;;
-  osx-arm64)  TRIPLET=arm64-osx-dynamic ;;
+  linux-x64)   TRIPLET=x64-linux-dynamic ;;
+  linux-arm64) TRIPLET=arm64-linux-dynamic ;;
+  osx-arm64)   TRIPLET=arm64-osx-dynamic ;;
   *) echo "unknown RID: $RID" >&2; exit 1 ;;
 esac
 
@@ -44,8 +45,8 @@ INSTALLED="$WORK/vcpkg/installed/$TRIPLET"
 # libgif) cause a silent dlopen failure, not a clear error, since
 # InteropDotNet's Unix loader swallows the underlying exception.
 case "$RID" in
-  linux-x64) cp -P "$INSTALLED"/lib/*.so* "$STAGE/" ;;
-  osx-arm64) cp -P "$INSTALLED"/lib/*.dylib "$STAGE/" ;;
+  linux-x64|linux-arm64) cp -P "$INSTALLED"/lib/*.so* "$STAGE/" ;;
+  osx-arm64)             cp -P "$INSTALLED"/lib/*.dylib "$STAGE/" ;;
 esac
 
 # Best-effort: grab every dependency's license text too, not just

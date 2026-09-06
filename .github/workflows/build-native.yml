@@ -42,6 +42,26 @@ jobs:
           path: stage/linux-x64
           if-no-files-found: error
 
+  linux-arm64:
+    runs-on: ubuntu-22.04-arm # real ARM64 hardware -- no cross-compile needed, unlike win-arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build autoconf-archive
+      - run: bash scripts/build-native.sh linux-arm64
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        run: bash scripts/smoketest.sh linux-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-arm64
+          path: stage/linux-arm64
+          if-no-files-found: error
+
   osx-arm64:
     runs-on: macos-14 # Apple Silicon image
     steps:
