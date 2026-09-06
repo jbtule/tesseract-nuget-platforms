@@ -37,65 +37,89 @@ pattern.
 
 ### Using it
 
-If you install `Tesseract.CrossPlatform`:
+If you install `Tesseract.CrossPlatform` and publish for a concrete
+platform, **no `CustomSearchPath` code is needed at all**:
 
-```csharp
-var nativeDir = Path.Combine(AppContext.BaseDirectory, "runtimes",
-    RuntimeInformation.RuntimeIdentifier, "native");
-TesseractEnviornment.CustomSearchPath = nativeDir;
+```
+dotnet publish -r osx-arm64 --self-contained false
 ```
 
-Point `CustomSearchPath` directly at `native/` — the patched wrapper checks
-that exact path first, no extra platform-name subfolder required (see
-"Vendored patches"). `dotnet publish` (and `dotnet run`/build for a
-single-RID app) copies the matching `runtimes/<rid>/native/**` files into
-the output directory automatically once `Tesseract.Native` is referenced —
-no manual copying required, same mechanism SkiaSharp/OpenCvSharp runtime
-packages use.
+`dotnet publish -r <rid>` (framework-dependent or self-contained — the
+standard, documented way to consume any RID-specific native package) copies
+the matching native binaries flat into the output directory, right next to
+your app itself. The patched wrapper's loader (see "Vendored patches") now
+checks that flat path automatically, so it just finds them — verified with
+an actual `dotnet publish` + run doing real OCR, not assumed.
+
+This does mean you need to target a concrete RID *somewhere* — a bare
+`dotnet run`/`dotnet build` with no RID context anywhere (no `-r`, no
+`<RuntimeIdentifier>` in the project) won't have any native asset to find,
+for any RID-specific native package, ours included; there'd be no way to
+know which platform's binary to fetch. That's inherent to how these
+packages work, not something specific to us.
 
 If you're using the *stock* `Tesseract` package instead (unpatched — you'd
-need to work around the `CustomSearchPath` nesting and arm64 detection
-issues yourself), you still only need `Tesseract.Native` for the binaries;
-the snippet above still applies, just point `CustomSearchPath` at
-`.../native/<platform>` per stock `TesseractEnviornment`'s behavior instead.
-
-> **Before first release, confirm the exact filename charlesw/tesseract's
-> interop layer (`TesseractEnviornment` / InteropDotNet) expects to load.**
-> If it wants an unversioned name like `libtesseract.so` rather than a
-> versioned one, add a copy/symlink step in `scripts/build-native.sh` /
-> `build-native.ps1` to match it. This repo ships whatever name vcpkg's
-> port produces, which may need a small alias.
+still hit the arm64-misdetection and flat-vs-nested-path issues described
+below, and have to set `CustomSearchPath` yourself pointing at a manually
+arranged `<platform>` subfolder), you still only need `Tesseract.Native`
+for the binaries themselves.
 
 ## Vendored patches
 
 `vendor/tesseract` is a submodule pointing at
 [jbtule/tesseract#arm64-platform-detection](https://github.com/jbtule/tesseract/tree/arm64-platform-detection),
-a fork of `charlesw/tesseract` with two small fixes to the native library
-loader. Neither has been upstreamed as a PR yet — they're vendored here so
-our packaging can move forward without waiting on review; this section
-should be updated (or removed) once/if they land upstream.
+a fork of `charlesw/tesseract` with several small fixes to the native
+library loader, none upstreamed as a PR yet — they're vendored here so our
+packaging can move forward without waiting on review; this section should
+be updated (or removed) once/if they land upstream. All were found (and
+verified fixed) via an actual end-to-end smoke test — construct a
+`TesseractEngine` and run real OCR against a generated image — not by
+inspection alone; several were non-obvious enough that inspection missed
+them the first time.
 
-**`CustomSearchPath` now checks the given path directly first.**
-`LibraryLoader.CheckCustomSearchPath()` used to unconditionally append an
-inferred platform-name subfolder (`x86`/`x64`/`arm64`) underneath
-`CustomSearchPath` before looking for the library — so a path you set
-explicitly, already knowing exactly which folder holds the right binaries,
-got a folder name silently appended on top of it anyway. The fix checks
-`<CustomSearchPath>/<file>` first and only falls back to the old
-`<CustomSearchPath>/<platform>/<file>` layout if that's not found, so it's
-non-breaking for anyone relying on the old behavior. This is why this
-repo's packages ship a plain `runtimes/<rid>/native/*` with no extra arch
-folder nested inside.
+**The flat output-directory path is checked, not just the legacy nested
+one.** `LibraryLoader.InternalLoadLibrary()` — which backs every automatic
+fallback location (executing-assembly dir, app-domain base dir, bin dir,
+working directory) plus `CustomSearchPath` — unconditionally forced a
+platform-name subfolder (`x86`/`x64`/`arm64`) between the base directory
+and the filename. But `dotnet publish -r <rid>` (the standard way to
+consume a RID-specific native package) copies native assets *flat* into
+the output root, not nested — so nothing ever found them without a caller
+manually setting `CustomSearchPath` to a manually-arranged nested folder.
+Now the flat `<baseDirectory>/<file>` path is tried first everywhere,
+falling back to the legacy nested layout for anyone relying on that. This
+is what makes `Tesseract.CrossPlatform` work with zero setup code after a
+normal `dotnet publish -r <rid>`.
 
-**arm64 misdetected as x64** (still relevant for the automatic fallback
-locations `LibraryLoader` also checks — executing-assembly dir, app-domain
-base dir, bin dir, working directory — which still nest by platform name
-and aren't something a caller controls the layout of).
+**Generic (unversioned) native library names.** `Constants.LeptonicaDllName`
+/ `TesseractDllName` were hardcoded to `"leptonica-1.82.0"` /
+`"tesseract50"` — the literal filenames of charlesw's own bundled Windows
+binaries. No search path fixes a flatly wrong filename: any consumer
+supplying their own build (via `CustomSearchPath`, or the flat-path
+discovery above) would never be found unless their files happened to be
+named identically to that one specific old bundled version. Changed to
+generic `"leptonica"`/`"tesseract"` — the loader's own `FixUpLibraryName`
+already appends the right platform prefix/extension, resolving to
+`libleptonica.so`/`libleptonica.dylib`/`leptonica.dll`, names that exist as
+unversioned aliases regardless of the exact release in use.
+
+**An additional `runtimes/<rid>/native/` fallback** (`CheckNuGetRuntimesFolder`,
+computed lazily on first actual `LoadLibrary` call, not eagerly at
+startup), for the less common case of a portable multi-RID build that
+might still nest assets that way. Not what makes the common case above
+work, but harmless to also check.
+
+**`CustomSearchPath` now checks the given path directly first**, the same
+flat-before-nested fix as above, applied specifically to
+`CheckCustomSearchPath` too.
+
+**arm64 misdetected as x64.**
 [`SystemManager.GetPlatformName()`](vendor/tesseract/src/Tesseract/Internal/InteropDotNet/SystemManager.cs)
 decided "x86" vs "x64" purely from `IntPtr.Size`, so any 64-bit ARM process
 (Apple Silicon, arm64 Linux) was reported as `x64`, and arm64/x64 binaries
-could never coexist in those fallback folders. On .NET Core/.NET 5+ it now
-uses `RuntimeInformation.ProcessArchitecture` instead, so arm64 processes
+could never coexist in the legacy nested-by-platform-name fallback
+locations. On .NET Core/.NET 5+ it now uses
+`RuntimeInformation.ProcessArchitecture` instead, so arm64 processes
 correctly get an `arm64` subfolder there. Classic .NET Framework
 (Windows-only, x86/x64 only) is untouched.
 
