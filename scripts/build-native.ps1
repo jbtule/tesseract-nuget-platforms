@@ -64,6 +64,23 @@ function Assert-Copied([string]$Pattern, [string]$Label) {
 Assert-Copied "tesseract*.dll" "tesseract"
 Assert-Copied "leptonica*.dll" "leptonica"
 
+# Unlike Linux/macOS -- where vcpkg's shared-library builds come with
+# unversioned SONAME-style symlinks (libtesseract.so -> .so.5 -> .so.5.5.2,
+# libtesseract.dylib likewise) -- vcpkg's Windows build only produces the
+# exact versioned filename (tesseract55.dll, leptonica-1.87.0.dll), no
+# generic alias. The patched wrapper's Constants.cs asks for generic
+# "tesseract"/"leptonica" (FixUpLibraryName appends ".dll"), which
+# resolves fine via those Unix symlinks but has nothing to match on
+# Windows without this: confirmed via a real "Failed to find library
+# leptonica.dll" failure. Copy each to the generic name it'll actually be
+# looked up by, alongside the original versioned file.
+function Copy-GenericAlias([string]$Pattern, [string]$GenericName) {
+    $file = Get-ChildItem "$Stage/$Pattern" | Select-Object -First 1
+    Copy-Item $file.FullName "$Stage/$GenericName.dll"
+}
+Copy-GenericAlias "tesseract*.dll" "tesseract"
+Copy-GenericAlias "leptonica*.dll" "leptonica"
+
 # Best-effort: grab every dependency's license text too, not just
 # tesseract/leptonica's own -- there are a lot more of them now.
 $LicenseDir = "$Root/stage/$Rid/licenses"
