@@ -28,10 +28,13 @@ pattern.
 | Package | What it is |
 |---|---|
 | `Tesseract.Native` | Meta-package. Depends on all four runtime packages below; NuGet's RID graph picks the right one for whatever you're building/publishing. Install this one. |
-| `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native` |
-| `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
-| `Tesseract.Native.runtime.osx-x64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-x64/native` |
-| `Tesseract.Native.runtime.osx-arm64` | same, for Apple Silicon |
+| `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native/x64` |
+| `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native/x64` |
+| `Tesseract.Native.runtime.osx-x64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-x64/native/x64` |
+| `Tesseract.Native.runtime.osx-arm64` | same, for Apple Silicon, under `runtimes/osx-arm64/native/arm64` |
+
+Note the extra `x64`/`arm64` folder nested one level inside `native/` — see
+"Vendored patch" below for why.
 
 ### Using it with charlesw/tesseract
 
@@ -41,8 +44,14 @@ var nativeDir = Path.Combine(AppContext.BaseDirectory, "runtimes",
 TesseractEnviornment.CustomSearchPath = nativeDir;
 ```
 
+Point `CustomSearchPath` at `native/`, **not** `native/<arch>/`:
+`LibraryLoader.InternalLoadLibrary` always appends its own platform-name
+subfolder onto `CustomSearchPath` before looking for the library, so the
+extra `x64`/`arm64` directory this repo's packages ship (matching the
+vendored fix below) is exactly what it expects to find one level down.
+
 `dotnet publish` (and `dotnet run`/build for a single-RID app) copies the
-matching `runtimes/<rid>/native/*` files into the output directory
+matching `runtimes/<rid>/native/**` files into the output directory
 automatically once `Tesseract.Native` is referenced — no manual copying
 required, same mechanism SkiaSharp/OpenCvSharp runtime packages use.
 
@@ -75,11 +84,6 @@ x86/x64 only) is untouched. This has **not** been upstreamed as a PR yet —
 it's vendored here so our packaging can move forward without waiting on
 review, and this section should be updated (or removed) once/if it lands
 upstream.
-
-Package consumers: point `TesseractEnviornment.CustomSearchPath` at a
-directory containing an `arm64`/`x64`/`x86` subfolder (not directly at
-`runtimes/<rid>/native`) if you're consuming the patched wrapper — see
-`vendor/tesseract`'s own docs for the exact convention.
 
 ## How the build works
 

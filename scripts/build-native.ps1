@@ -16,7 +16,10 @@ Get-Content "$Root/versions.env" | ForEach-Object {
 
 $Work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Path $Work | Out-Null
-$Stage = "$Root/stage/win-x64/native"
+# charlesw/tesseract's LibraryLoader always appends a platform-name subfolder
+# ("x86"/"x64") under whatever base directory it's given -- so the actual
+# DLLs need to live one level deeper than "native/", at "native/x64/".
+$Stage = "$Root/stage/win-x64/native/x64"
 New-Item -ItemType Directory -Path $Stage -Force | Out-Null
 
 $Triplet = "x64-windows"

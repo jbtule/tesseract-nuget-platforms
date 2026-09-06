@@ -21,11 +21,17 @@ STAGE="$ROOT/stage/$RID/native"
 mkdir -p "$STAGE"
 
 case "$RID" in
-  linux-x64)  TRIPLET=x64-linux-release ;;
-  osx-x64)    TRIPLET=x64-osx-release ;;
-  osx-arm64)  TRIPLET=arm64-osx-release ;;
+  linux-x64)  TRIPLET=x64-linux-release;  ARCH_DIR=x64 ;;
+  osx-x64)    TRIPLET=x64-osx-release;    ARCH_DIR=x64 ;;
+  osx-arm64)  TRIPLET=arm64-osx-release;  ARCH_DIR=arm64 ;;
   *) echo "unknown RID: $RID" >&2; exit 1 ;;
 esac
+# charlesw/tesseract's LibraryLoader always appends a platform-name subfolder
+# ("x86"/"x64", or "arm64" with the vendor/tesseract patch) under whatever
+# base directory it's given -- so the actual libraries need to live one
+# level deeper than "native/", at "native/<ARCH_DIR>/".
+STAGE="$STAGE/$ARCH_DIR"
+mkdir -p "$STAGE"
 
 # custom release-only triplets so vcpkg doesn't waste time on debug builds
 VCPKG_OVERLAY="$WORK/triplets"
