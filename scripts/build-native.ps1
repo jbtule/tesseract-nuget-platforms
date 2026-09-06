@@ -30,18 +30,26 @@ git clone --depth 1 https://github.com/microsoft/vcpkg "$Work/vcpkg"
 
 $VcpkgToolchain = "$Work/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
+# Ninja rather than the "Visual Studio 17 2022" CMake generator: the VS
+# generator relies on CMake locating a registered VS *instance*, which has
+# proven flaky on hosted runner images even when cl.exe/MSBuild are present
+# and working (as evidenced by vcpkg building fine just above). Ninja just
+# needs cl.exe on PATH, which the caller sets up via ilammy/msvc-dev-cmd
+# before invoking this script.
 git clone --depth 1 --branch $LEPTONICA_VERSION https://github.com/DanBloomberg/leptonica "$Work/leptonica"
-cmake -S "$Work/leptonica" -B "$Work/leptonica/build" -G "Visual Studio 17 2022" -A x64 `
+cmake -S "$Work/leptonica" -B "$Work/leptonica/build" -G Ninja `
+  -DCMAKE_BUILD_TYPE=Release `
   -DBUILD_SHARED_LIBS=ON `
   -DCMAKE_TOOLCHAIN_FILE="$VcpkgToolchain" `
   -DVCPKG_TARGET_TRIPLET=$Triplet `
   -DCMAKE_INSTALL_PREFIX="$Work/install" `
   -DSW_BUILD=OFF
-cmake --build "$Work/leptonica/build" --config Release --parallel
-cmake --install "$Work/leptonica/build" --config Release
+cmake --build "$Work/leptonica/build" --parallel
+cmake --install "$Work/leptonica/build"
 
 git clone --depth 1 --branch $TESSERACT_VERSION https://github.com/tesseract-ocr/tesseract "$Work/tesseract"
-cmake -S "$Work/tesseract" -B "$Work/tesseract/build" -G "Visual Studio 17 2022" -A x64 `
+cmake -S "$Work/tesseract" -B "$Work/tesseract/build" -G Ninja `
+  -DCMAKE_BUILD_TYPE=Release `
   -DBUILD_SHARED_LIBS=ON `
   -DBUILD_TRAINING_TOOLS=OFF `
   -DDISABLE_CURL=ON `
@@ -52,8 +60,8 @@ cmake -S "$Work/tesseract" -B "$Work/tesseract/build" -G "Visual Studio 17 2022"
   -DCMAKE_PREFIX_PATH="$Work/install" `
   -DLeptonica_DIR="$Work/install/lib/cmake/leptonica" `
   -DCMAKE_INSTALL_PREFIX="$Work/install"
-cmake --build "$Work/tesseract/build" --config Release --parallel
-cmake --install "$Work/tesseract/build" --config Release
+cmake --build "$Work/tesseract/build" --parallel
+cmake --install "$Work/tesseract/build"
 
 Copy-Item "$Work/install/bin/tesseract*.dll" $Stage
 Copy-Item "$Work/install/bin/leptonica*.dll" $Stage
