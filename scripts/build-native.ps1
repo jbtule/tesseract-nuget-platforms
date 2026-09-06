@@ -32,7 +32,22 @@ switch ($Rid) {
     "win-x64"   { $Triplet = "x64-windows" }
     "win-arm64" {
         $Triplet = "arm64-windows"
-        $CrossCompileArgs = @("-DCMAKE_SYSTEM_NAME=Windows", "-DCMAKE_SYSTEM_PROCESSOR=ARM64")
+        # CMAKE_SYSTEM_PROCESSOR must be lowercase "arm64" to match the
+        # (case-sensitive) regex Tesseract's CMakeLists branches its SIMD
+        # selection on -- "ARM64" matches neither its "arm64" nor its
+        # "AARCH64.*" alternative, so NEON wouldn't get enabled even though
+        # the (also gated on this same regex) x86 AVX/SSE codepath would
+        # correctly stay disabled either way.
+        #
+        # LEPT_TIFF_RESULT is pre-seeded because CMake can't try_run() an
+        # ARM64 test binary on this x64 host to check Leptonica's TIFF
+        # support; 0 (success) reflects that our Leptonica build does have
+        # real TIFF support, from vcpkg's tiff port.
+        $CrossCompileArgs = @(
+            "-DCMAKE_SYSTEM_NAME=Windows",
+            "-DCMAKE_SYSTEM_PROCESSOR=arm64",
+            "-DLEPT_TIFF_RESULT=0"
+        )
     }
     default { Write-Error "unknown RID: $Rid"; exit 1 }
 }
