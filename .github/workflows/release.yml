@@ -35,7 +35,11 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Load versions.env
-        run: cat versions.env >> "$GITHUB_ENV"
+        # $GITHUB_ENV's file-command parser rejects anything that isn't a
+        # strict KEY=VALUE line -- versions.env's comment/blank lines (fine
+        # for `source`-ing in bash/pwsh, which is all build-native.yml ever
+        # does with it) break it, so strip them here.
+        run: grep -v '^\s*#' versions.env | grep -v '^\s*$' >> "$GITHUB_ENV"
 
       - name: Verify tag matches PACKAGE_VERSION
         run: |
