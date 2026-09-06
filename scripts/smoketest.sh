@@ -51,7 +51,7 @@ sed \
   -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
   -e "s|[$]vcpkgRef[$]|$VCPKG_REF|g" \
   -e "s|[$]repoUrl[$]|$REPO_URL|g" \
-  -e "s|[$]stage[$]|$ROOT/stage|g" \
+  -e "s|[$]stage[$]|stage|g" \
   "$ROOT/nuget/runtime/Tesseract.Native.runtime.nuspec" > "$WORK/runtime.nuspec"
 dotnet pack "$ROOT/nuget/runtime/RuntimePackage.csproj" -c Release -o "$FEED" \
   -p:NuspecFile="$WORK/runtime.nuspec" -p:NuspecBasePath="$ROOT"

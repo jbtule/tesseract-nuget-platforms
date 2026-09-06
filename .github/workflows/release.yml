@@ -92,7 +92,7 @@ jobs:
               -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
               -e "s|[$]vcpkgRef[$]|$VCPKG_REF|g" \
               -e "s|[$]repoUrl[$]|$repo_url|g" \
-              -e "s|[$]stage[$]|$GITHUB_WORKSPACE/stage|g" \
+              -e "s|[$]stage[$]|stage|g" \
               nuget/runtime/Tesseract.Native.runtime.nuspec > "$nuspec"
             dotnet pack nuget/runtime/RuntimePackage.csproj -c Release -o out \
               -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
