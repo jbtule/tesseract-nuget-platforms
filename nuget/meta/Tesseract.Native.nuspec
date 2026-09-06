@@ -17,13 +17,25 @@
     <repository type="git" url="$repoUrl$" />
     <tags>tesseract leptonica ocr native runtime meta-package</tags>
     <readme>README.md</readme>
+    <!--
+      No include="Runtime" here: that refers to NuGet's asset-flow
+      terminology (managed lib/ assemblies), not our "runtime package"
+      naming. Our runtime.* packages ship only runtimes/**/native content,
+      which NuGet classifies as the Native asset group, so restricting to
+      Runtime told it "only flow this dependency's managed libraries
+      forward", and since these packages have none, NuGet dropped the
+      dependency from the restore graph entirely. Confirmed via a real
+      repro: a fresh project referencing only Tesseract.Native restored
+      with zero other libraries in project.assets.json. No include/exclude
+      restriction is the correct, working default.
+    -->
     <dependencies>
       <group targetFramework="netstandard2.0">
-        <dependency id="Tesseract.Native.runtime.win-x64" version="$version$" include="Runtime" />
-        <dependency id="Tesseract.Native.runtime.win-arm64" version="$version$" include="Runtime" />
-        <dependency id="Tesseract.Native.runtime.linux-x64" version="$version$" include="Runtime" />
-        <dependency id="Tesseract.Native.runtime.linux-arm64" version="$version$" include="Runtime" />
-        <dependency id="Tesseract.Native.runtime.osx-arm64" version="$version$" include="Runtime" />
+        <dependency id="Tesseract.Native.runtime.win-x64" version="$version$" />
+        <dependency id="Tesseract.Native.runtime.win-arm64" version="$version$" />
+        <dependency id="Tesseract.Native.runtime.linux-x64" version="$version$" />
+        <dependency id="Tesseract.Native.runtime.linux-arm64" version="$version$" />
+        <dependency id="Tesseract.Native.runtime.osx-arm64" version="$version$" />
       </group>
     </dependencies>
   </metadata>
