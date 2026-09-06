@@ -4,7 +4,7 @@
     <id>$id$</id>
     <version>$version$</version>
     <authors>jay@tuley.name</authors>
-    <description>Native Tesseract OCR ($tesseractVersion$) + Leptonica ($leptonicaVersion$) shared libraries for $rid$, built from source in GitHub Actions. Intended for use with charlesw/tesseract's TesseractEnviornment.CustomSearchPath, or any consumer that restores a runtimes/$rid$/native asset. You normally want the Tesseract.Native meta-package instead of this one directly.</description>
+    <description>Native Tesseract OCR + Leptonica shared libraries for $rid$, built via vcpkg ($vcpkgRef$) in GitHub Actions. Intended for use with charlesw/tesseract's TesseractEnviornment.CustomSearchPath, or any consumer that restores a runtimes/$rid$/native asset. You normally want the Tesseract.Native meta-package instead of this one directly.</description>
     <license type="expression">Apache-2.0</license>
     <projectUrl>$repoUrl$</projectUrl>
     <repository type="git" url="$repoUrl$" />

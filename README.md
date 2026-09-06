@@ -1,7 +1,8 @@
 # Tesseract.Native
 
 Cross-platform native Tesseract OCR + Leptonica binaries, packaged as NuGet
-runtime packages, built from source in GitHub Actions.
+runtime packages, built via [vcpkg](https://vcpkg.io)'s own `tesseract`/
+`leptonica` ports in GitHub Actions.
 
 ## Why this exists
 
@@ -18,8 +19,8 @@ Nobody publishes a full win/linux/mac set:
   Docker.
 
 This repo fills the gap: one GitHub Actions matrix that builds Leptonica +
-Tesseract from source for `win-x64`, `win-arm64`, `linux-x64`, and
-`osx-arm64`, and publishes them as NuGet packages that follow the standard
+Tesseract for `win-x64`, `win-arm64`, `linux-x64`, and `osx-arm64` via
+vcpkg, and publishes them as NuGet packages that follow the standard
 [RID-specific runtime package](https://learn.microsoft.com/nuget/create-packages/supporting-multiple-target-frameworks#architecture-specific-packages)
 pattern.
 
@@ -29,7 +30,7 @@ pattern.
 |---|---|
 | `Tesseract.Native` | Meta-package. Depends on all four runtime packages below; NuGet's RID graph picks the right one for whatever you're building/publishing. Install this one. |
 | `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native` |
-| `Tesseract.Native.runtime.win-arm64` | same, cross-compiled with MSVC's ARM64 toolset, under `runtimes/win-arm64/native` |
+| `Tesseract.Native.runtime.win-arm64` | same, cross-compiled by vcpkg from the x64 runner host, under `runtimes/win-arm64/native` |
 | `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
 | `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native`, for Apple Silicon |
 
@@ -52,11 +53,10 @@ required, same mechanism SkiaSharp/OpenCvSharp runtime packages use.
 
 > **Before first release, confirm the exact filename charlesw/tesseract's
 > interop layer (`TesseractEnviornment` / InteropDotNet) expects to load.**
-> If it wants an unversioned name like `libtesseract.so` rather than
-> `libtesseract.5.5.0.so`, add a copy/symlink step in
-> `scripts/build-native.sh` / `build-native.ps1` to match it. This repo
-> ships whatever name CMake's `install()` produces, which may need a small
-> alias.
+> If it wants an unversioned name like `libtesseract.so` rather than a
+> versioned one, add a copy/symlink step in `scripts/build-native.sh` /
+> `build-native.ps1` to match it. This repo ships whatever name vcpkg's
+> port produces, which may need a small alias.
 
 ## Vendored patches
 
@@ -159,20 +159,35 @@ arguably the hardest of the three backlog items:
 
 ## How the build works
 
-- **`versions.env`** is the single source of truth: which Leptonica/Tesseract
-  source tags to build, and what NuGet package version to cut.
+Tesseract's own `CMakeLists.txt` has real, still-open gaps in ARM64+MSVC
+support as of this writing — see
+[tesseract-ocr/tesseract#3466](https://github.com/tesseract-ocr/tesseract/issues/3466),
+where even the officially-documented `-G "Visual Studio 17 2022" -A ARM64`
+approach misdetects the target as x86 (`HAVE_AVX2: ON` etc. on an ARM64
+build) and fails to link NEON symbols. vcpkg's `tesseract`/`leptonica` ports
+already carry the accumulated patches for exactly this (ARM64-Windows
+support landed there in 2022); we build through vcpkg specifically to
+inherit that maintenance rather than re-deriving each fix ourselves.
+
+- **`versions.env`** is the single source of truth: which `vcpkg` ref to
+  build tesseract/leptonica from (`VCPKG_REF`), and what NuGet package
+  version to cut (`PACKAGE_VERSION`).
 - **`scripts/build-native.sh <rid>`** (Linux/macOS) and
-  **`scripts/build-native.ps1`** (Windows) each: pull the codec dependencies
-  Leptonica needs (zlib, libpng, libjpeg-turbo, tiff, libwebp) as static libs
-  via vcpkg, then `git clone` + `cmake --build --install` Leptonica and then
-  Tesseract from their pinned source tags, and stage the resulting shared
-  libraries under `stage/<rid>/native`.
+  **`scripts/build-native.ps1`** (Windows) each: clone vcpkg at `VCPKG_REF`,
+  bootstrap it, and `vcpkg install tesseract leptonica` for a dynamic
+  (shared-library) triplet — `x64-linux-dynamic`/`arm64-osx-dynamic` on
+  Unix (vcpkg's default Linux/macOS triplets are static; the `-dynamic`
+  community triplets exist precisely for cases like ours), plain
+  `x64-windows`/`arm64-windows` on Windows (dynamic by default there) — then
+  stage the resulting shared libraries under `stage/<rid>/native`. See the
+  comments at the top of each script for why we consume vcpkg's ports
+  rather than building from tesseract/leptonica's own source tags directly.
 - **`.github/workflows/build-native.yml`** runs those scripts across a
   4-way matrix (win-x64, win-arm64, linux-x64, osx-arm64) and uploads each
   platform's staged output as a build artifact. It also runs on every
   PR/push touching the scripts, so build breakage surfaces before a
-  release. win-arm64 cross-compiles from the (x64) `windows-latest` runner
-  using MSVC's ARM64 toolset via `ilammy/msvc-dev-cmd`'s `amd64_arm64` arch.
+  release. vcpkg handles the win-arm64 cross-compile from the x64
+  `windows-latest` runner internally — no manual toolchain setup needed.
 - **`.github/workflows/release.yml`** runs on a `vX.Y.Z` tag push: calls
   `build-native.yml`, downloads all four artifacts, packs the four runtime
   `.nupkg`s plus the `Tesseract.Native` meta `.nupkg` (via
@@ -182,8 +197,11 @@ arguably the hardest of the three backlog items:
 
 ## Cutting a release
 
-1. Bump `LEPTONICA_VERSION` / `TESSERACT_VERSION` / `PACKAGE_VERSION` in
-   `versions.env` as needed and commit.
+1. Bump `VCPKG_REF` / `PACKAGE_VERSION` in `versions.env` as needed and
+   commit. (`VCPKG_REF` doesn't have to change every release — only bump it
+   when you want a newer tesseract/leptonica; check
+   `ports/tesseract/vcpkg.json` at that ref on GitHub to see which version
+   you'd get.)
 2. `git tag v<PACKAGE_VERSION> && git push origin v<PACKAGE_VERSION>` — the
    tag's version must match `PACKAGE_VERSION` exactly or the release job
    fails fast.
