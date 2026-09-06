@@ -53,6 +53,13 @@ jobs:
           dotnet-version: "8.0.x"
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build autoconf-archive
+      # vcpkg downloads its own known-good CMake when the system one is too
+      # old, but doesn't appear to ship a prebuilt binary for Linux ARM64,
+      # silently falling back to Ubuntu 22.04's system cmake (~3.22) -- too
+      # old for a `string(JSON ... STRING_ENCODE)` call some port scripts
+      # use. Install a current one explicitly rather than relying on that
+      # fallback.
+      - uses: lukka/get-cmake@latest
       - run: bash scripts/build-native.sh linux-arm64
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         run: bash scripts/smoketest.sh linux-arm64
