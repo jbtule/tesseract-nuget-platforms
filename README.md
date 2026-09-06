@@ -193,7 +193,24 @@ inherit that maintenance rather than re-deriving each fix ourselves.
   `.nupkg`s plus the `Tesseract.Native` meta `.nupkg` (via
   `nuget/runtime/RuntimePackage.csproj` + `Tesseract.Native.runtime.nuspec`,
   reused for all four RIDs through `-p:NuspecProperties`), and pushes all
-  five to nuget.org using the `NUGET_API_KEY` repo secret.
+  five to nuget.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
+  (OIDC) — no long-lived API key stored in the repo.
+
+## One-time setup: Trusted Publishing
+
+Before the first release can actually publish:
+
+1. On nuget.org: account menu → **Trusted Publishing** → add a policy with
+   Repository Owner `jbtule`, Repository `tesseract-nuget-platforms`,
+   Workflow File `release.yml` (file name only, no path), Environment left
+   blank.
+2. Add a `NUGET_USER` repo secret holding your nuget.org username (profile
+   name, *not* email) — not sensitive enough to strictly require a secret,
+   but keeps it out of workflow logs.
+
+No API key to create, store, or rotate — `release.yml` exchanges a
+GitHub-issued OIDC token for a nuget.org API key that's valid for one hour
+and single-use, requested right before each push.
 
 ## Cutting a release
 
@@ -209,7 +226,7 @@ inherit that maintenance rather than re-deriving each fix ourselves.
 
 ## Known gaps / not yet done
 
-- **`NUGET_API_KEY` secret** needs to be added to the repo before the first
+- **Trusted Publishing setup** (above) needs to be done before the first
   release will actually publish.
 - **Package ownership**: `Tesseract.Native` / `Tesseract.Native.runtime.*`
   were unclaimed on nuget.org as of writing — verify that's still true and

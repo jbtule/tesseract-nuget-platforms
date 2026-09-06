@@ -2,7 +2,14 @@ name: Release
 
 # Push a tag "vX.Y.Z" where X.Y.Z matches PACKAGE_VERSION in versions.env
 # to build every platform's native libraries and publish the resulting
-# NuGet packages to nuget.org. Requires a NUGET_API_KEY repo secret.
+# NuGet packages to nuget.org via Trusted Publishing (OIDC) -- no API key
+# secret needed. Requires:
+#   1. A Trusted Publishing policy configured on nuget.org (account ->
+#      Trusted Publishing) for this exact repo + workflow file (see
+#      https://learn.microsoft.com/nuget/nuget-org/trusted-publishing).
+#   2. A NUGET_USER repo secret holding your nuget.org username (profile
+#      name, not email) -- not sensitive enough to strictly require a
+#      secret, but avoids the username being visible in workflow runs.
 
 on:
   push:
@@ -16,6 +23,8 @@ jobs:
   pack-and-publish:
     needs: build-native
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required to request the OIDC token for Trusted Publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -66,12 +75,21 @@ jobs:
           dotnet pack nuget/meta/Tesseract.Native.csproj -c Release -o out \
             -p:NuspecProperties="version=$PACKAGE_VERSION;repoUrl=$repo_url"
 
+      # Exchanges this job's GitHub OIDC token for a nuget.org API key that's
+      # valid for 1 hour and single-use-per-token -- requested right before
+      # pushing, per nuget.org's guidance, rather than earlier in the job.
+      - name: NuGet login (OIDC -> temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push to nuget.org
         run: |
           set -euo pipefail
           for f in out/*.nupkg; do
             dotnet nuget push "$f" \
-              --api-key "${{ secrets.NUGET_API_KEY }}" \
+              --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
               --source https://api.nuget.org/v3/index.json \
               --skip-duplicate
           done
