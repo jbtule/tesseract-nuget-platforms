@@ -33,8 +33,11 @@ pattern.
 | `Tesseract.Native.runtime.win-arm64` | same, cross-compiled by vcpkg from the x64 runner host, under `runtimes/win-arm64/native` |
 | `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
 | `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native`, for Apple Silicon |
+| `Tesseract.CrossPlatform` | The [charlesw/tesseract](https://github.com/charlesw/tesseract) C# wrapper itself, built from the patched fork in `vendor/tesseract` (see "Vendored patches" below), depending on `Tesseract.Native`. **API-compatible drop-in replacement for the stock `Tesseract` package** — same namespace/types. Install this *instead of* `Tesseract`, not alongside it. |
 
-### Using it with charlesw/tesseract
+### Using it
+
+If you install `Tesseract.CrossPlatform`:
 
 ```csharp
 var nativeDir = Path.Combine(AppContext.BaseDirectory, "runtimes",
@@ -42,14 +45,19 @@ var nativeDir = Path.Combine(AppContext.BaseDirectory, "runtimes",
 TesseractEnviornment.CustomSearchPath = nativeDir;
 ```
 
-Point `CustomSearchPath` directly at `native/` — with the vendored fix below,
-that's exactly where it looks first; no extra platform-name subfolder
-required.
+Point `CustomSearchPath` directly at `native/` — the patched wrapper checks
+that exact path first, no extra platform-name subfolder required (see
+"Vendored patches"). `dotnet publish` (and `dotnet run`/build for a
+single-RID app) copies the matching `runtimes/<rid>/native/**` files into
+the output directory automatically once `Tesseract.Native` is referenced —
+no manual copying required, same mechanism SkiaSharp/OpenCvSharp runtime
+packages use.
 
-`dotnet publish` (and `dotnet run`/build for a single-RID app) copies the
-matching `runtimes/<rid>/native/**` files into the output directory
-automatically once `Tesseract.Native` is referenced — no manual copying
-required, same mechanism SkiaSharp/OpenCvSharp runtime packages use.
+If you're using the *stock* `Tesseract` package instead (unpatched — you'd
+need to work around the `CustomSearchPath` nesting and arm64 detection
+issues yourself), you still only need `Tesseract.Native` for the binaries;
+the snippet above still applies, just point `CustomSearchPath` at
+`.../native/<platform>` per stock `TesseractEnviornment`'s behavior instead.
 
 > **Before first release, confirm the exact filename charlesw/tesseract's
 > interop layer (`TesseractEnviornment` / InteropDotNet) expects to load.**
@@ -192,9 +200,17 @@ inherit that maintenance rather than re-deriving each fix ourselves.
   `build-native.yml`, downloads all four artifacts, packs the four runtime
   `.nupkg`s plus the `Tesseract.Native` meta `.nupkg` (via
   `nuget/runtime/RuntimePackage.csproj` + `Tesseract.Native.runtime.nuspec`,
-  reused for all four RIDs through `-p:NuspecProperties`), and pushes all
-  five to nuget.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
-  (OIDC) — no long-lived API key stored in the repo.
+  reused for all four RIDs), builds `vendor/tesseract`'s wrapper assembly
+  and packs it as `Tesseract.CrossPlatform` (via
+  `nuget/wrapper/Tesseract.CrossPlatform.{csproj,nuspec}`), and pushes all
+  six to nuget.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
+  (OIDC) — no long-lived API key stored in the repo. Each nuspec's `$token$`
+  placeholders are filled in with `sed` into a temp file, then packed via
+  `-p:NuspecFile=<path>` — not `-p:NuspecProperties="k1=v1;k2=v2"`, which
+  looks like the "correct" way to do this but silently only substitutes the
+  first token in practice (both MSBuild's `-p:` parsing and NuGet's own
+  `NuspecProperties` parsing use `;` as their delimiter, and on the SDK
+  version this runs against, the outer one wins).
 
 ## One-time setup: Trusted Publishing
 
@@ -228,9 +244,12 @@ and single-use, requested right before each push.
 
 - **Trusted Publishing setup** (above) needs to be done before the first
   release will actually publish.
-- **Package ownership**: `Tesseract.Native` / `Tesseract.Native.runtime.*`
-  were unclaimed on nuget.org as of writing — verify that's still true and
-  claim them under your account before relying on the id.
+- **Package ownership**: `Tesseract.Native`, `Tesseract.Native.runtime.*`,
+  and `Tesseract.CrossPlatform` were unclaimed on nuget.org as of writing —
+  verify that's still true and claim them under your account before
+  relying on the ids. (Trusted Publishing policies can only be set up for
+  ids you already own or that don't exist yet, so this is somewhat
+  self-resolving on first publish, but check before you're relying on it.)
 - No `osx-x64` (Intel Mac): dropped deliberately — declining relevance plus
   GH's `macos-13` runner pool queuing for 15+ minutes before even starting a
   build. `win-arm64` was added in its place as the more useful target.

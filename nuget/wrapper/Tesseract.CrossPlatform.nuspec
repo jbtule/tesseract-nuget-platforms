@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>Tesseract.CrossPlatform</id>
+    <version>$version$</version>
+    <authors>jay@tuley.name</authors>
+    <description>
+      charlesw/tesseract's .NET wrapper for Tesseract OCR, built from a
+      patched fork (jbtule/tesseract#arm64-platform-detection) so
+      TesseractEnviornment.CustomSearchPath checks the exact path you give
+      it instead of always nesting an inferred platform subfolder underneath
+      it, and so arm64 processes are correctly detected instead of reported
+      as x64. Depends on Tesseract.Native, so installing this one package
+      restores the matching native binaries for whichever of
+      win-x64/win-arm64/linux-x64/osx-arm64 you're building for.
+
+      API-compatible drop-in replacement for the stock Tesseract package --
+      same namespace and types. Install this INSTEAD OF Tesseract, not
+      alongside it.
+    </description>
+    <license type="expression">Apache-2.0</license>
+    <projectUrl>$repoUrl$</projectUrl>
+    <repository type="git" url="$repoUrl$" />
+    <tags>tesseract ocr cross-platform arm64</tags>
+    <dependencies>
+      <group targetFramework="netstandard2.0">
+        <dependency id="Tesseract.Native" version="$version$" />
+        <dependency id="System.Reflection.Emit" version="4.7.0" />
+      </group>
+      <group targetFramework="net47">
+        <dependency id="Tesseract.Native" version="$version$" />
+      </group>
+      <group targetFramework="net48">
+        <dependency id="Tesseract.Native" version="$version$" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="$wrapperBuild$/netstandard2.0/Tesseract.dll" target="lib/netstandard2.0/" />
+    <file src="$wrapperBuild$/netstandard2.0/Tesseract.xml" target="lib/netstandard2.0/" />
+    <file src="$wrapperBuild$/net47/Tesseract.dll" target="lib/net47/" />
+    <file src="$wrapperBuild$/net48/Tesseract.dll" target="lib/net48/" />
+  </files>
+</package>

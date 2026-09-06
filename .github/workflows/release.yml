@@ -27,6 +27,8 @@ jobs:
       id-token: write # required to request the OIDC token for Trusted Publishing
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true # vendor/tesseract is a submodule, needed to build the wrapper package
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -59,21 +61,71 @@ jobs:
           done
           find stage -maxdepth 2
 
+      # Substitutes $token$ placeholders into a copy of a .nuspec file via
+      # sed rather than -p:NuspecProperties="k1=v1;k2=v2": MSBuild's -p:
+      # command-line parsing and NuGet's own NuspecProperties parsing both
+      # use ";" as a delimiter, and in practice (at least on the SDK version
+      # this runs against) that conflict means only the *first* key=value
+      # pair actually reaches the nuspec -- every other token silently
+      # never gets substituted (surfaced here as "ProjectUrl cannot be
+      # empty" the first time this ran for real). A plain templated file +
+      # -p:NuspecFile=<path> has no such ambiguity.
+      #
+      # [$]token[$] rather than \$token\$: under double-quoted sed -e
+      # strings, bash's own backslash-escaping of \$ interferes with sed
+      # ever seeing a literal "$" to match -- a bracket expression sidesteps
+      # that entirely.
       - name: Pack runtime packages
         run: |
           set -euo pipefail
           repo_url="https://github.com/${{ github.repository }}"
+          mkdir -p /tmp/nuspecs
           for rid in win-x64 win-arm64 linux-x64 osx-arm64; do
+            nuspec="/tmp/nuspecs/Tesseract.Native.runtime.$rid.nuspec"
+            sed \
+              -e "s|[$]id[$]|Tesseract.Native.runtime.$rid|g" \
+              -e "s|[$]rid[$]|$rid|g" \
+              -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+              -e "s|[$]vcpkgRef[$]|$VCPKG_REF|g" \
+              -e "s|[$]repoUrl[$]|$repo_url|g" \
+              -e "s|[$]stage[$]|$GITHUB_WORKSPACE/stage|g" \
+              nuget/runtime/Tesseract.Native.runtime.nuspec > "$nuspec"
             dotnet pack nuget/runtime/RuntimePackage.csproj -c Release -o out \
-              -p:NuspecProperties="id=Tesseract.Native.runtime.$rid;rid=$rid;version=$PACKAGE_VERSION;vcpkgRef=$VCPKG_REF;repoUrl=$repo_url;stage=$GITHUB_WORKSPACE/stage"
+              -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
           done
 
       - name: Pack meta package
         run: |
           set -euo pipefail
           repo_url="https://github.com/${{ github.repository }}"
+          nuspec=/tmp/nuspecs/Tesseract.Native.nuspec
+          mkdir -p /tmp/nuspecs
+          sed \
+            -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+            -e "s|[$]repoUrl[$]|$repo_url|g" \
+            nuget/meta/Tesseract.Native.nuspec > "$nuspec"
           dotnet pack nuget/meta/Tesseract.Native.csproj -c Release -o out \
-            -p:NuspecProperties="version=$PACKAGE_VERSION;repoUrl=$repo_url"
+            -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
+
+      - name: Build patched wrapper (vendor/tesseract)
+        run: |
+          set -euo pipefail
+          dotnet build vendor/tesseract/src/Tesseract/Tesseract.csproj -c Release \
+            -p:GeneratePackageOnBuild=false
+
+      - name: Pack wrapper package
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          nuspec=/tmp/nuspecs/Tesseract.CrossPlatform.nuspec
+          mkdir -p /tmp/nuspecs
+          sed \
+            -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+            -e "s|[$]repoUrl[$]|$repo_url|g" \
+            -e "s|[$]wrapperBuild[$]|$GITHUB_WORKSPACE/vendor/tesseract/src/Tesseract/bin/Release|g" \
+            nuget/wrapper/Tesseract.CrossPlatform.nuspec > "$nuspec"
+          dotnet pack nuget/wrapper/Tesseract.CrossPlatform.csproj -c Release -o out \
+            -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
 
       # Exchanges this job's GitHub OIDC token for a nuget.org API key that's
       # valid for 1 hour and single-use-per-token -- requested right before
