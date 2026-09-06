@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           repo_url="https://github.com/${{ github.repository }}"
-          for rid in win-x64 linux-x64 osx-x64 osx-arm64; do
+          for rid in win-x64 win-arm64 linux-x64 osx-arm64; do
             dotnet pack nuget/runtime/RuntimePackage.csproj -c Release -o out \
               -p:NuspecProperties="id=Tesseract.Native.runtime.$rid;rid=$rid;version=$PACKAGE_VERSION;tesseractVersion=$TESSERACT_VERSION;leptonicaVersion=$LEPTONICA_VERSION;repoUrl=$repo_url;stage=$GITHUB_WORKSPACE/stage"
           done

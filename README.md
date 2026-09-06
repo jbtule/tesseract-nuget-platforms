@@ -18,8 +18,8 @@ Nobody publishes a full win/linux/mac set:
   Docker.
 
 This repo fills the gap: one GitHub Actions matrix that builds Leptonica +
-Tesseract from source for `win-x64`, `linux-x64`, `osx-x64`, and `osx-arm64`,
-and publishes them as NuGet packages that follow the standard
+Tesseract from source for `win-x64`, `win-arm64`, `linux-x64`, and
+`osx-arm64`, and publishes them as NuGet packages that follow the standard
 [RID-specific runtime package](https://learn.microsoft.com/nuget/create-packages/supporting-multiple-target-frameworks#architecture-specific-packages)
 pattern.
 
@@ -29,9 +29,9 @@ pattern.
 |---|---|
 | `Tesseract.Native` | Meta-package. Depends on all four runtime packages below; NuGet's RID graph picks the right one for whatever you're building/publishing. Install this one. |
 | `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native/x64` |
+| `Tesseract.Native.runtime.win-arm64` | same, cross-compiled with MSVC's ARM64 toolset, under `runtimes/win-arm64/native/arm64` |
 | `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native/x64` |
-| `Tesseract.Native.runtime.osx-x64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-x64/native/x64` |
-| `Tesseract.Native.runtime.osx-arm64` | same, for Apple Silicon, under `runtimes/osx-arm64/native/arm64` |
+| `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native/arm64`, for Apple Silicon |
 
 Note the extra `x64`/`arm64` folder nested one level inside `native/` — see
 "Vendored patch" below for why.
@@ -113,6 +113,24 @@ for when it comes up:
   optionally hidden behind a small internal C# facade shaped like
   `TesseractEngine` so callers don't see the JS interop plumbing.
 
+## Backlog: Android (`android-arm64`)
+
+Also not started, also out of scope for the current packaging model —
+`linux-arm64` binaries do **not** run on Android even though its kernel is
+Linux:
+
+- Android uses Bionic, not glibc — needs a build compiled with the Android
+  NDK's clang toolchain targeting `android-arm64`/`android-x64`, not our
+  glibc-based linux job.
+- `vendor/tesseract`'s `SystemManager.GetOperatingSystem()` only recognizes
+  Windows/Unix/MacOSX today and throws `"Unsupported operation system"` for
+  anything else — Android needs its own case, plus (likely) its own
+  `ILibraryLoaderLogic`, since modern Android restricts `dlopen` to paths
+  inside the app's own extracted native-lib directory rather than an
+  arbitrary `CustomSearchPath`.
+- Same shape of effort as the WASM backlog item above: a real but separate
+  track, not a matrix entry.
+
 ## How the build works
 
 - **`versions.env`** is the single source of truth: which Leptonica/Tesseract
@@ -124,9 +142,11 @@ for when it comes up:
   Tesseract from their pinned source tags, and stage the resulting shared
   libraries under `stage/<rid>/native`.
 - **`.github/workflows/build-native.yml`** runs those scripts across a
-  4-way OS matrix and uploads each platform's staged output as a build
-  artifact. It also runs on every PR/push touching the scripts, so build
-  breakage surfaces before a release.
+  4-way matrix (win-x64, win-arm64, linux-x64, osx-arm64) and uploads each
+  platform's staged output as a build artifact. It also runs on every
+  PR/push touching the scripts, so build breakage surfaces before a
+  release. win-arm64 cross-compiles from the (x64) `windows-latest` runner
+  using MSVC's ARM64 toolset via `ilammy/msvc-dev-cmd`'s `amd64_arm64` arch.
 - **`.github/workflows/release.yml`** runs on a `vX.Y.Z` tag push: calls
   `build-native.yml`, downloads all four artifacts, packs the four runtime
   `.nupkg`s plus the `Tesseract.Native` meta `.nupkg` (via
@@ -150,8 +170,12 @@ for when it comes up:
 - **Package ownership**: `Tesseract.Native` / `Tesseract.Native.runtime.*`
   were unclaimed on nuget.org as of writing — verify that's still true and
   claim them under your account before relying on the id.
-- No `linux-arm64` / `win-arm64` yet (deferred per current scope). Adding one
-  is a matrix entry + a triplet in the build script.
+- No `osx-x64` (Intel Mac): dropped deliberately — declining relevance plus
+  GH's `macos-13` runner pool queuing for 15+ minutes before even starting a
+  build. `win-arm64` was added in its place as the more useful target.
+- No `linux-arm64` yet (deferred per current scope). Adding one is a matrix
+  entry + a triplet in the build script, same shape as the existing
+  linux-x64 job.
 - No GPG/package signing, no SBOM generation, no automated smoke test that
   actually loads the built library from a sample .NET app — worth adding
   before treating this as production-grade.

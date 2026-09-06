@@ -1,11 +1,27 @@
-# Builds Leptonica + Tesseract from source for win-x64 and stages the
-# resulting DLLs under stage/win-x64/native.
+# Builds Leptonica + Tesseract from source for one Windows RID and stages
+# the resulting DLLs under stage/<rid>/native/<arch>.
 #
-# Usage: pwsh scripts/build-native.ps1
+# Usage: pwsh scripts/build-native.ps1 <win-x64|win-arm64>
+#
+# Must be run with cl.exe/link.exe already on PATH for the *target*
+# architecture (see ilammy/msvc-dev-cmd in build-native.yml) -- win-arm64 is
+# a cross-compile from the x64 runner host using MSVC's ARM64 toolset.
 #
 # See build-native.sh for the rationale (vcpkg for static codec deps,
 # source builds for leptonica/tesseract themselves).
 $ErrorActionPreference = "Stop"
+
+$Rid = $args[0]
+if (-not $Rid) {
+    Write-Error "usage: build-native.ps1 <win-x64|win-arm64>"
+    exit 1
+}
+
+switch ($Rid) {
+    "win-x64"   { $Triplet = "x64-windows";   $ArchDir = "x64" }
+    "win-arm64" { $Triplet = "arm64-windows"; $ArchDir = "arm64" }
+    default { Write-Error "unknown RID: $Rid"; exit 1 }
+}
 
 $Root = Resolve-Path "$PSScriptRoot/.."
 Get-Content "$Root/versions.env" | ForEach-Object {
@@ -17,12 +33,11 @@ Get-Content "$Root/versions.env" | ForEach-Object {
 $Work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Path $Work | Out-Null
 # charlesw/tesseract's LibraryLoader always appends a platform-name subfolder
-# ("x86"/"x64") under whatever base directory it's given -- so the actual
-# DLLs need to live one level deeper than "native/", at "native/x64/".
-$Stage = "$Root/stage/win-x64/native/x64"
+# ("x86"/"x64", or "arm64" with the vendor/tesseract patch) under whatever
+# base directory it's given -- so the actual DLLs need to live one level
+# deeper than "native/", at "native/<ArchDir>/".
+$Stage = "$Root/stage/$Rid/native/$ArchDir"
 New-Item -ItemType Directory -Path $Stage -Force | Out-Null
-
-$Triplet = "x64-windows"
 
 git clone --depth 1 https://github.com/microsoft/vcpkg "$Work/vcpkg"
 & "$Work/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
@@ -35,7 +50,8 @@ $VcpkgToolchain = "$Work/vcpkg/scripts/buildsystems/vcpkg.cmake"
 # proven flaky on hosted runner images even when cl.exe/MSBuild are present
 # and working (as evidenced by vcpkg building fine just above). Ninja just
 # needs cl.exe on PATH, which the caller sets up via ilammy/msvc-dev-cmd
-# before invoking this script.
+# before invoking this script (and is also what makes the win-arm64
+# cross-compile straightforward -- it's just "whichever cl.exe is on PATH").
 git clone --depth 1 --branch $LEPTONICA_VERSION https://github.com/DanBloomberg/leptonica "$Work/leptonica"
 cmake -S "$Work/leptonica" -B "$Work/leptonica/build" -G Ninja `
   -DCMAKE_BUILD_TYPE=Release `
@@ -66,10 +82,10 @@ cmake --install "$Work/tesseract/build"
 Copy-Item "$Work/install/bin/tesseract*.dll" $Stage
 Copy-Item "$Work/install/bin/leptonica*.dll" $Stage
 
-Copy-Item "$Work/leptonica/leptonica-license.txt" "$Root/stage/win-x64/leptonica-LICENSE.txt" -ErrorAction SilentlyContinue
-Copy-Item "$Work/tesseract/LICENSE" "$Root/stage/win-x64/tesseract-LICENSE.txt" -ErrorAction SilentlyContinue
+Copy-Item "$Work/leptonica/leptonica-license.txt" "$Root/stage/$Rid/leptonica-LICENSE.txt" -ErrorAction SilentlyContinue
+Copy-Item "$Work/tesseract/LICENSE" "$Root/stage/$Rid/tesseract-LICENSE.txt" -ErrorAction SilentlyContinue
 
-Write-Host "== Staged win-x64 =="
+Write-Host "== Staged $Rid =="
 Get-ChildItem $Stage
 
 # NOTE: confirm the exact DllImport base name charlesw/tesseract's interop
