@@ -30,7 +30,7 @@ pattern.
 |---|---|
 | `Tesseract.Native` | Meta-package. Depends on all four runtime packages below; NuGet's RID graph picks the right one for whatever you're building/publishing. Install this one. |
 | `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native` |
-| `Tesseract.Native.runtime.win-arm64` | same, cross-compiled by vcpkg from the x64 runner host, under `runtimes/win-arm64/native` |
+| `Tesseract.Native.runtime.win-arm64` | same, native-built on a real ARM64 Windows runner (no cross-compile needed), under `runtimes/win-arm64/native` |
 | `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
 | `Tesseract.Native.runtime.linux-arm64` | same, native-built on a real ARM64 runner (no cross-compile needed), under `runtimes/linux-arm64/native` |
 | `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native`, for Apple Silicon |
@@ -220,10 +220,13 @@ inherit that maintenance rather than re-deriving each fix ourselves.
   followed by a real end-to-end smoke test (see below), and uploads each
   platform's staged output as a build artifact. It also runs on every
   PR/push touching the scripts, so build breakage surfaces before a
-  release. vcpkg handles the win-arm64 cross-compile from the x64
-  `windows-latest` runner internally — no manual toolchain setup needed;
-  linux-arm64 needs no cross-compile at all, running natively on GitHub's
-  hosted `ubuntu-22.04-arm` runner.
+  release. None of the arm64 targets need to cross-compile: `win-arm64`
+  runs natively on GitHub's hosted `windows-11-arm` runner (real ARM64
+  hardware with a native MSVC toolset, confirmed via
+  [actions/runner-images](https://github.com/actions/runner-images/blob/main/images/windows/Windows11-Arm64-Readme.md)),
+  and `linux-arm64` likewise on `ubuntu-22.04-arm` — so build and smoke
+  test run in the same job for every platform, no separate job needed just
+  to *execute* what got cross-compiled elsewhere.
 - **`.github/workflows/release.yml`** runs on a `vX.Y.Z` tag push: calls
   `build-native.yml`, downloads all five artifacts, packs the five runtime
   `.nupkg`s plus the `Tesseract.Native` meta `.nupkg` (via

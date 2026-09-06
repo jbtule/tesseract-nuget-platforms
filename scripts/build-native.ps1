@@ -6,9 +6,11 @@
 # See build-native.sh for the rationale (consuming vcpkg's tesseract/
 # leptonica ports rather than building from upstream source ourselves --
 # vcpkg's maintainers already carry the ARM64/MSVC CMake patches this
-# needs). vcpkg handles win-arm64 as a cross-compile from the x64 runner
-# host internally; no manual toolchain setup (e.g. vcvars) is needed here,
-# unlike the raw-CMake approach this replaced.
+# needs). No manual toolchain setup (e.g. vcvars) is needed here, unlike
+# the raw-CMake approach this replaced; vcpkg finds MSVC on its own either
+# way. win-x64 runs on the x64 windows-latest runner; win-arm64 runs
+# natively on windows-11-arm (real ARM64 hardware with a native MSVC
+# toolset) rather than cross-compiling.
 $ErrorActionPreference = "Stop"
 
 $Rid = $args[0]

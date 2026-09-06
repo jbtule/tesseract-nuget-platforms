@@ -107,25 +107,14 @@ jobs:
           path: stage/win-x64
           if-no-files-found: error
 
+  # windows-11-arm is real ARM64 hardware with a native ARM64 MSVC toolset
+  # (Microsoft.VisualStudio.Component.VC.Tools.ARM64, confirmed via
+  # actions/runner-images' own Windows11-Arm64-Readme.md) -- not x64
+  # emulation. Builds + smoke-tests in one job, same shape as
+  # linux-arm64/osx-arm64: no cross-compile, so no need for a second job on
+  # different hardware just to *execute* what got built, unlike the
+  # windows-latest-cross-compile approach this replaced.
   win-arm64:
-    runs-on: windows-latest # vcpkg cross-compiles from the x64 host itself
-    steps:
-      - uses: actions/checkout@v4
-      - run: pwsh scripts/build-native.ps1 win-arm64
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-win-arm64
-          path: stage/win-arm64
-          if-no-files-found: error
-
-  # win-arm64's native build cross-compiles on the x64 windows-latest host
-  # above, but *running* ARM64 code (the actual smoke test) needs real
-  # ARM64 hardware -- windows-11-arm is GitHub's hosted ARM64 Windows
-  # runner (GA for public repos). Separate job rather than folding into
-  # win-arm64 above, since that job's own host genuinely can't execute
-  # what it just cross-built.
-  win-arm64-smoketest:
-    needs: win-arm64
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v4
@@ -134,10 +123,12 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - uses: actions/download-artifact@v4
-        with:
-          name: native-win-arm64
-          path: stage/win-arm64
+      - run: pwsh scripts/build-native.ps1 win-arm64
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         shell: bash
         run: bash scripts/smoketest.sh win-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-win-arm64
+          path: stage/win-arm64
+          if-no-files-found: error
