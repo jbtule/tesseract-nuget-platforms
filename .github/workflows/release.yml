@@ -132,11 +132,18 @@ jobs:
           dotnet pack nuget/meta/Tesseract.Native.csproj -c Release -o out \
             -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
 
+      # AssemblyName=Tesseract.CrossPlatform (not the default "Tesseract",
+      # from the project file name): a generic native "tesseract.dll" alias
+      # (see Constants.cs in the vendored fix) and a managed "Tesseract.dll"
+      # would otherwise collide on a case-insensitive filesystem (Windows) --
+      # confirmed via a real NETSDK1152 "multiple publish output files"
+      # failure. Namespace and types are untouched, only the built file
+      # name changes.
       - name: Build patched wrapper (vendor/tesseract)
         run: |
           set -euo pipefail
           dotnet build vendor/tesseract/src/Tesseract/Tesseract.csproj -c Release \
-            -p:GeneratePackageOnBuild=false
+            -p:GeneratePackageOnBuild=false -p:AssemblyName=Tesseract.CrossPlatform
 
       - name: Pack wrapper package
         run: |

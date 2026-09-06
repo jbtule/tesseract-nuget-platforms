@@ -81,8 +81,14 @@ with zipfile.ZipFile('$FEED/Tesseract.Native.runtime.$RID.$PACKAGE_VERSION.nupkg
             print(n)
 "
 
+# AssemblyName=Tesseract.CrossPlatform (not the default "Tesseract", from
+# the project file name): a generic native "tesseract.dll" alias (see
+# Constants.cs in the vendored fix) and a managed "Tesseract.dll" would
+# otherwise collide on a case-insensitive filesystem (Windows) -- confirmed
+# via a real NETSDK1152 "multiple publish output files" failure. Namespace
+# and types are untouched, only the built file name changes.
 dotnet build "$ROOT/vendor/tesseract/src/Tesseract/Tesseract.csproj" -c Release \
-  -p:GeneratePackageOnBuild=false
+  -p:GeneratePackageOnBuild=false -p:AssemblyName=Tesseract.CrossPlatform
 
 sed \
   -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
