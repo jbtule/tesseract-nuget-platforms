@@ -43,22 +43,28 @@ switch ($Rid) {
         # ARM64 test binary on this x64 host to check Leptonica's TIFF
         # support; 0 (success) reflects that our Leptonica build does have
         # real TIFF support, from vcpkg's tiff port.
-        # HAVE_NEON is set to TRUE by CMakeLists' arm64 branch, but never
-        # actually passed to the compiler via add_definitions (unlike every
-        # x86 SIMD flag, which does get one) -- and dotproductneon.cpp /
-        # intsimdmatrixneon.cpp / simddetect.cpp all guard their NEON code
-        # on "#if defined(HAVE_NEON) || defined(__aarch64__)". __aarch64__
-        # is a GCC/Clang macro that MSVC's ARM64 target never defines (MSVC
-        # uses _M_ARM64 instead), so without this they silently compile to
-        # empty translation units and every NEON symbol goes unresolved at
-        # link time. Looks like a genuine gap in upstream Tesseract's
-        # MSVC+ARM64 CMake support; defining the macro ourselves works
-        # around it without patching source.
+        # Two different macros gate NEON, and MSVC's ARM64 target defines
+        # neither on its own -- another gap in upstream Tesseract's
+        # MSVC+ARM64 CMake support, worked around here without patching
+        # source:
+        #  - simddetect.cpp's *dispatch* to the NEON functions is gated on
+        #    "defined(HAVE_NEON) || defined(__aarch64__)". HAVE_NEON is set
+        #    TRUE by CMakeLists' arm64 branch but, unlike every x86 SIMD
+        #    flag, never actually add_definitions()'d to the compiler; and
+        #    __aarch64__ is a GCC/Clang macro MSVC never defines (it uses
+        #    _M_ARM64 instead).
+        #  - dotproductneon.cpp/intsimdmatrixneon.cpp's actual NEON
+        #    *implementations* are separately gated on "defined(__ARM_NEON)"
+        #    -- the standard ARM C Language Extensions macro, which GCC/Clang
+        #    define automatically on aarch64 but MSVC never does either.
+        # Without both, simddetect.cpp compiles a call to DotProductNEON()/
+        # intSimdMatrixNEON while the files defining them compile to empty
+        # translation units, so it links but goes unresolved at link time.
         $CrossCompileArgs = @(
             "-DCMAKE_SYSTEM_NAME=Windows",
             "-DCMAKE_SYSTEM_PROCESSOR=arm64",
             "-DLEPT_TIFF_RESULT=0",
-            "-DCMAKE_CXX_FLAGS=/DHAVE_NEON"
+            "-DCMAKE_CXX_FLAGS=/DHAVE_NEON /D__ARM_NEON"
         )
     }
     default { Write-Error "unknown RID: $Rid"; exit 1 }
