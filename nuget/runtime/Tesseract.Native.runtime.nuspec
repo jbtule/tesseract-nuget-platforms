@@ -12,8 +12,20 @@
     <readme>README.md</readme>
   </metadata>
   <files>
-    <file src="$stage$/$rid$/native/*.*" target="runtimes/$rid$/native" />
-    <file src="$stage$/$rid$/licenses/*.*" target="licenses" />
+    <!--
+      No globs here on purpose. NuGet's glob-to-target path computation for
+      a wildcard src has proven unreliable specifically when dotnet pack
+      runs on Windows: a recursive globbed src duplicated the source
+      directory structure under target, and a single-level globbed src
+      matched nothing at all, while the identical patterns packed
+      correctly from macOS/Linux either way. NATIVE_FILES/LICENSE_FILES
+      are placeholders: the packing script generates one explicit,
+      absolute, non-wildcard file entry per actual file and inserts it
+      here instead, which has no cross-platform glob ambiguity to hit in
+      the first place.
+    -->
+    <!-- NATIVE_FILES_PLACEHOLDER -->
+    <!-- LICENSE_FILES_PLACEHOLDER -->
     <file src="nuget/runtime/README.md" target="README.md" />
   </files>
 </package>

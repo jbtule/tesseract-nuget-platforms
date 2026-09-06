@@ -35,6 +35,17 @@ to_native_path() {
   fi
 }
 
+# One explicit, absolute, non-wildcard <file> entry per actual file in $1,
+# targeting $2 in the package -- see the NATIVE_FILES_PLACEHOLDER comment
+# in the runtime nuspec for why this replaced a glob pattern.
+gen_file_entries() {
+  local dir="$1" target="$2" f
+  for f in "$dir"/*; do
+    [ -f "$f" ] || continue
+    printf '    <file src="%s" target="%s" />\n' "$f" "$target"
+  done
+}
+
 RID="${1:?usage: smoketest.sh <rid>}"
 ROOT="$(to_native_path "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)")"
 # shellcheck disable=SC1091
@@ -45,13 +56,19 @@ FEED="$WORK/feed"
 mkdir -p "$FEED"
 REPO_URL="https://github.com/${GITHUB_REPOSITORY:-jbtule/tesseract-nuget-platforms}"
 
+gen_file_entries "$ROOT/stage/$RID/native" "runtimes/$RID/native" > "$WORK/native-files.xml"
+gen_file_entries "$ROOT/stage/$RID/licenses" "licenses" > "$WORK/license-files.xml"
+
 sed \
   -e "s|[$]id[$]|Tesseract.Native.runtime.$RID|g" \
   -e "s|[$]rid[$]|$RID|g" \
   -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
   -e "s|[$]vcpkgRef[$]|$VCPKG_REF|g" \
   -e "s|[$]repoUrl[$]|$REPO_URL|g" \
-  -e "s|[$]stage[$]|stage|g" \
+  -e "/NATIVE_FILES_PLACEHOLDER/r $WORK/native-files.xml" \
+  -e "/NATIVE_FILES_PLACEHOLDER/d" \
+  -e "/LICENSE_FILES_PLACEHOLDER/r $WORK/license-files.xml" \
+  -e "/LICENSE_FILES_PLACEHOLDER/d" \
   "$ROOT/nuget/runtime/Tesseract.Native.runtime.nuspec" > "$WORK/runtime.nuspec"
 dotnet pack "$ROOT/nuget/runtime/RuntimePackage.csproj" -c Release -o "$FEED" \
   -p:NuspecFile="$WORK/runtime.nuspec" -p:NuspecBasePath="$ROOT"

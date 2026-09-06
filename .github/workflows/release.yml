@@ -79,20 +79,41 @@ jobs:
       # strings, bash's own backslash-escaping of \$ interferes with sed
       # ever seeing a literal "$" to match -- a bracket expression sidesteps
       # that entirely.
+      # No globs in the nuspec's <file> entries -- see the
+      # NATIVE_FILES_PLACEHOLDER comment in the runtime nuspec: NuGet's
+      # glob-to-target path computation for a wildcard src proved
+      # unreliable specifically on Windows (a recursive glob duplicated
+      # the source path under target, a single-level glob matched nothing
+      # at all), so an explicit non-wildcard <file> entry is generated per
+      # actual file instead and inserted via sed's r/d commands.
       - name: Pack runtime packages
         run: |
           set -euo pipefail
           repo_url="https://github.com/${{ github.repository }}"
           mkdir -p /tmp/nuspecs
+
+          gen_file_entries() {
+            local dir="$1" target="$2" f
+            for f in "$dir"/*; do
+              [ -f "$f" ] || continue
+              printf '    <file src="%s" target="%s" />\n' "$f" "$target"
+            done
+          }
+
           for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-arm64; do
             nuspec="/tmp/nuspecs/Tesseract.Native.runtime.$rid.nuspec"
+            gen_file_entries "$GITHUB_WORKSPACE/stage/$rid/native" "runtimes/$rid/native" > /tmp/nuspecs/native-files.xml
+            gen_file_entries "$GITHUB_WORKSPACE/stage/$rid/licenses" "licenses" > /tmp/nuspecs/license-files.xml
             sed \
               -e "s|[$]id[$]|Tesseract.Native.runtime.$rid|g" \
               -e "s|[$]rid[$]|$rid|g" \
               -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
               -e "s|[$]vcpkgRef[$]|$VCPKG_REF|g" \
               -e "s|[$]repoUrl[$]|$repo_url|g" \
-              -e "s|[$]stage[$]|stage|g" \
+              -e "/NATIVE_FILES_PLACEHOLDER/r /tmp/nuspecs/native-files.xml" \
+              -e "/NATIVE_FILES_PLACEHOLDER/d" \
+              -e "/LICENSE_FILES_PLACEHOLDER/r /tmp/nuspecs/license-files.xml" \
+              -e "/LICENSE_FILES_PLACEHOLDER/d" \
               nuget/runtime/Tesseract.Native.runtime.nuspec > "$nuspec"
             dotnet pack nuget/runtime/RuntimePackage.csproj -c Release -o out \
               -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
