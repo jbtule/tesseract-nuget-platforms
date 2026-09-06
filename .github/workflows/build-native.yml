@@ -7,12 +7,18 @@ on:
     paths:
       - "scripts/**"
       - "versions.env"
+      - "nuget/**"
+      - "smoketest/**"
+      - "vendor/tesseract"
       - ".github/workflows/build-native.yml"
   push:
     branches: [main]
     paths:
       - "scripts/**"
       - "versions.env"
+      - "nuget/**"
+      - "smoketest/**"
+      - "vendor/tesseract"
       - ".github/workflows/build-native.yml"
 
 jobs:
@@ -20,9 +26,16 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true # vendor/tesseract, needed to build+smoke-test the wrapper
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build autoconf-archive
       - run: bash scripts/build-native.sh linux-x64
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        run: bash scripts/smoketest.sh linux-x64
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux-x64
@@ -33,8 +46,15 @@ jobs:
     runs-on: macos-14 # Apple Silicon image
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
       - run: brew install ninja autoconf-archive
       - run: bash scripts/build-native.sh osx-arm64
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        run: bash scripts/smoketest.sh osx-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: native-osx-arm64
@@ -45,7 +65,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
       - run: pwsh scripts/build-native.ps1 win-x64
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        shell: bash
+        run: bash scripts/smoketest.sh win-x64
       - uses: actions/upload-artifact@v4
         with:
           name: native-win-x64
@@ -62,3 +90,27 @@ jobs:
           name: native-win-arm64
           path: stage/win-arm64
           if-no-files-found: error
+
+  # win-arm64's native build cross-compiles on the x64 windows-latest host
+  # above, but *running* ARM64 code (the actual smoke test) needs real
+  # ARM64 hardware -- windows-11-arm is GitHub's hosted ARM64 Windows
+  # runner (GA for public repos). Separate job rather than folding into
+  # win-arm64 above, since that job's own host genuinely can't execute
+  # what it just cross-built.
+  win-arm64-smoketest:
+    needs: win-arm64
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-win-arm64
+          path: stage/win-arm64
+      - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
+        shell: bash
+        run: bash scripts/smoketest.sh win-arm64

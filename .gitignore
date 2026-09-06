@@ -3,3 +3,5 @@ stage-raw/
 out/
 bin/
 obj/
+smoketest/nuget.config
+smoketest/tessdata/

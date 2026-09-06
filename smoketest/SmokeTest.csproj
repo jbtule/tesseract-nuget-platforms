@@ -23,6 +23,15 @@
     <Nullable>enable</Nullable>
     <RuntimeIdentifier>$(Rid)</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
+    <!--
+      Sidesteps a reproducible CS0579 "duplicate assembly attribute" error
+      seen with this RID-specific-publish + PackageReference-from-a-local-
+      feed combination (assembly-info generation ran twice against a
+      single-TFM project for reasons not fully tracked down), and this
+      throwaway smoke-test project has no need of generated assembly
+      metadata anyway.
+    -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <ItemGroup>
