@@ -1,5 +1,5 @@
 # Builds Leptonica + Tesseract from source for one Windows RID and stages
-# the resulting DLLs under stage/<rid>/native/<arch>.
+# the resulting DLLs under stage/<rid>/native.
 #
 # Usage: pwsh scripts/build-native.ps1 <win-x64|win-arm64>
 #
@@ -18,8 +18,8 @@ if (-not $Rid) {
 }
 
 switch ($Rid) {
-    "win-x64"   { $Triplet = "x64-windows";   $ArchDir = "x64" }
-    "win-arm64" { $Triplet = "arm64-windows"; $ArchDir = "arm64" }
+    "win-x64"   { $Triplet = "x64-windows" }
+    "win-arm64" { $Triplet = "arm64-windows" }
     default { Write-Error "unknown RID: $Rid"; exit 1 }
 }
 
@@ -32,11 +32,7 @@ Get-Content "$Root/versions.env" | ForEach-Object {
 
 $Work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Path $Work | Out-Null
-# charlesw/tesseract's LibraryLoader always appends a platform-name subfolder
-# ("x86"/"x64", or "arm64" with the vendor/tesseract patch) under whatever
-# base directory it's given -- so the actual DLLs need to live one level
-# deeper than "native/", at "native/<ArchDir>/".
-$Stage = "$Root/stage/$Rid/native/$ArchDir"
+$Stage = "$Root/stage/$Rid/native"
 New-Item -ItemType Directory -Path $Stage -Force | Out-Null
 
 git clone --depth 1 https://github.com/microsoft/vcpkg "$Work/vcpkg"

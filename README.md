@@ -28,13 +28,10 @@ pattern.
 | Package | What it is |
 |---|---|
 | `Tesseract.Native` | Meta-package. Depends on all four runtime packages below; NuGet's RID graph picks the right one for whatever you're building/publishing. Install this one. |
-| `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native/x64` |
-| `Tesseract.Native.runtime.win-arm64` | same, cross-compiled with MSVC's ARM64 toolset, under `runtimes/win-arm64/native/arm64` |
-| `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native/x64` |
-| `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native/arm64`, for Apple Silicon |
-
-Note the extra `x64`/`arm64` folder nested one level inside `native/` — see
-"Vendored patch" below for why.
+| `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native` |
+| `Tesseract.Native.runtime.win-arm64` | same, cross-compiled with MSVC's ARM64 toolset, under `runtimes/win-arm64/native` |
+| `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
+| `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native`, for Apple Silicon |
 
 ### Using it with charlesw/tesseract
 
@@ -44,11 +41,9 @@ var nativeDir = Path.Combine(AppContext.BaseDirectory, "runtimes",
 TesseractEnviornment.CustomSearchPath = nativeDir;
 ```
 
-Point `CustomSearchPath` at `native/`, **not** `native/<arch>/`:
-`LibraryLoader.InternalLoadLibrary` always appends its own platform-name
-subfolder onto `CustomSearchPath` before looking for the library, so the
-extra `x64`/`arm64` directory this repo's packages ship (matching the
-vendored fix below) is exactly what it expects to find one level down.
+Point `CustomSearchPath` directly at `native/` — with the vendored fix below,
+that's exactly where it looks first; no extra platform-name subfolder
+required.
 
 `dotnet publish` (and `dotnet run`/build for a single-RID app) copies the
 matching `runtimes/<rid>/native/**` files into the output directory
@@ -63,27 +58,38 @@ required, same mechanism SkiaSharp/OpenCvSharp runtime packages use.
 > ships whatever name CMake's `install()` produces, which may need a small
 > alias.
 
-## Vendored patch: arm64 misdetected as x64
-
-`charlesw/tesseract`'s native library loader
-([`SystemManager.GetPlatformName()`](vendor/tesseract/src/Tesseract/Internal/InteropDotNet/SystemManager.cs))
-decides "x86" vs "x64" purely from `IntPtr.Size`, so any 64-bit ARM process
-(Apple Silicon, arm64 Linux) is reported as `x64`. Since
-`LibraryLoader.InternalLoadLibrary()` always appends this platform name as a
-subfolder under `CustomSearchPath`, arm64 users are forced to mislabel their
-arm64 binaries under an `x64` folder — which also means x64 and arm64 native
-libraries can never coexist. This repo's own macOS docs and test projects
-carry that exact workaround today.
+## Vendored patches
 
 `vendor/tesseract` is a submodule pointing at
 [jbtule/tesseract#arm64-platform-detection](https://github.com/jbtule/tesseract/tree/arm64-platform-detection),
-a fork with a one-file fix: on .NET Core/.NET 5+,
-`RuntimeInformation.ProcessArchitecture` is used instead, so arm64 processes
-correctly get an `arm64` subfolder. Classic .NET Framework (Windows-only,
-x86/x64 only) is untouched. This has **not** been upstreamed as a PR yet —
-it's vendored here so our packaging can move forward without waiting on
-review, and this section should be updated (or removed) once/if it lands
-upstream.
+a fork of `charlesw/tesseract` with two small fixes to the native library
+loader. Neither has been upstreamed as a PR yet — they're vendored here so
+our packaging can move forward without waiting on review; this section
+should be updated (or removed) once/if they land upstream.
+
+**`CustomSearchPath` now checks the given path directly first.**
+`LibraryLoader.CheckCustomSearchPath()` used to unconditionally append an
+inferred platform-name subfolder (`x86`/`x64`/`arm64`) underneath
+`CustomSearchPath` before looking for the library — so a path you set
+explicitly, already knowing exactly which folder holds the right binaries,
+got a folder name silently appended on top of it anyway. The fix checks
+`<CustomSearchPath>/<file>` first and only falls back to the old
+`<CustomSearchPath>/<platform>/<file>` layout if that's not found, so it's
+non-breaking for anyone relying on the old behavior. This is why this
+repo's packages ship a plain `runtimes/<rid>/native/*` with no extra arch
+folder nested inside.
+
+**arm64 misdetected as x64** (still relevant for the automatic fallback
+locations `LibraryLoader` also checks — executing-assembly dir, app-domain
+base dir, bin dir, working directory — which still nest by platform name
+and aren't something a caller controls the layout of).
+[`SystemManager.GetPlatformName()`](vendor/tesseract/src/Tesseract/Internal/InteropDotNet/SystemManager.cs)
+decided "x86" vs "x64" purely from `IntPtr.Size`, so any 64-bit ARM process
+(Apple Silicon, arm64 Linux) was reported as `x64`, and arm64/x64 binaries
+could never coexist in those fallback folders. On .NET Core/.NET 5+ it now
+uses `RuntimeInformation.ProcessArchitecture` instead, so arm64 processes
+correctly get an `arm64` subfolder there. Classic .NET Framework
+(Windows-only, x86/x64 only) is untouched.
 
 ## Backlog: Blazor WASM (`browser-wasm`)
 
