@@ -16,6 +16,7 @@
     <projectUrl>$repoUrl$</projectUrl>
     <repository type="git" url="$repoUrl$" />
     <tags>tesseract leptonica ocr native runtime meta-package</tags>
+    <readme>README.md</readme>
     <dependencies>
       <group targetFramework="netstandard2.0">
         <dependency id="Tesseract.Native.runtime.win-x64" version="$version$" include="Runtime" />
@@ -25,4 +26,7 @@
       </group>
     </dependencies>
   </metadata>
+  <files>
+    <file src="nuget/meta/README.md" target="README.md" />
+  </files>
 </package>

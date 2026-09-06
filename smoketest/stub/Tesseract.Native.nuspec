@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>Tesseract.Native</id>
+    <version>$version$</version>
+    <authors>jay@tuley.name</authors>
+    <description>
+      CI smoke-test-only stub. Real Tesseract.Native depends on all four
+      per-RID runtime packages, most of which don't exist in a single-RID
+      CI job -- this exists purely to satisfy Tesseract.CrossPlatform's
+      normal dependency on Tesseract.Native so the smoke test project can
+      reference Tesseract.Native.runtime.$(rid) directly instead. Never
+      published to nuget.org.
+    </description>
+    <license type="expression">Apache-2.0</license>
+  </metadata>
+</package>

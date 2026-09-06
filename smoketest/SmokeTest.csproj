@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CI smoke test: proves the *packaged* Tesseract.CrossPlatform plus
+    Tesseract.Native.runtime.(rid) actually work together, end to end (real
+    OCR against test.png), not just that the native build succeeded.
+
+    Deliberately does NOT reference the real Tesseract.Native meta-package
+    (which depends on all four RID packages, most of which don't exist in
+    a single-RID CI job). Instead references Tesseract.Native.runtime.(Rid)
+    directly, and restores against a local folder feed (see
+    build-native.yml) containing that RID's just-built runtime package,
+    the just-built Tesseract.CrossPlatform, and a zero-dependency stub
+    Tesseract.Native (stub/Tesseract.Native.nuspec) that exists purely to
+    satisfy Tesseract.CrossPlatform's normal dependency on it.
+
+    (Rid) and (PackageVersion) are supplied via -p: on the command line.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RuntimeIdentifier>$(Rid)</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tesseract.CrossPlatform" Version="$(PackageVersion)" />
+    <PackageReference Include="Tesseract.Native.runtime.$(Rid)" Version="$(PackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="test.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
