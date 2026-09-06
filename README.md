@@ -54,6 +54,33 @@ required, same mechanism SkiaSharp/OpenCvSharp runtime packages use.
 > ships whatever name CMake's `install()` produces, which may need a small
 > alias.
 
+## Vendored patch: arm64 misdetected as x64
+
+`charlesw/tesseract`'s native library loader
+([`SystemManager.GetPlatformName()`](vendor/tesseract/src/Tesseract/Internal/InteropDotNet/SystemManager.cs))
+decides "x86" vs "x64" purely from `IntPtr.Size`, so any 64-bit ARM process
+(Apple Silicon, arm64 Linux) is reported as `x64`. Since
+`LibraryLoader.InternalLoadLibrary()` always appends this platform name as a
+subfolder under `CustomSearchPath`, arm64 users are forced to mislabel their
+arm64 binaries under an `x64` folder — which also means x64 and arm64 native
+libraries can never coexist. This repo's own macOS docs and test projects
+carry that exact workaround today.
+
+`vendor/tesseract` is a submodule pointing at
+[jbtule/tesseract#arm64-platform-detection](https://github.com/jbtule/tesseract/tree/arm64-platform-detection),
+a fork with a one-file fix: on .NET Core/.NET 5+,
+`RuntimeInformation.ProcessArchitecture` is used instead, so arm64 processes
+correctly get an `arm64` subfolder. Classic .NET Framework (Windows-only,
+x86/x64 only) is untouched. This has **not** been upstreamed as a PR yet —
+it's vendored here so our packaging can move forward without waiting on
+review, and this section should be updated (or removed) once/if it lands
+upstream.
+
+Package consumers: point `TesseractEnviornment.CustomSearchPath` at a
+directory containing an `arm64`/`x64`/`x86` subfolder (not directly at
+`runtimes/<rid>/native`) if you're consuming the patched wrapper — see
+`vendor/tesseract`'s own docs for the exact convention.
+
 ## How the build works
 
 - **`versions.env`** is the single source of truth: which Leptonica/Tesseract

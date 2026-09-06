@@ -1,0 +1,4 @@
+[submodule "vendor/tesseract"]
+	path = vendor/tesseract
+	url = https://github.com/jbtule/tesseract.git
+	branch = arm64-platform-detection
