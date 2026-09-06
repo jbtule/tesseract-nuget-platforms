@@ -55,6 +55,14 @@ sed \
   "$ROOT/nuget/runtime/Tesseract.Native.runtime.nuspec" > "$WORK/runtime.nuspec"
 dotnet pack "$ROOT/nuget/runtime/RuntimePackage.csproj" -c Release -o "$FEED" \
   -p:NuspecFile="$WORK/runtime.nuspec" -p:NuspecBasePath="$ROOT"
+echo "== Packed runtime nupkg contents (runtimes/) =="
+python3 -c "
+import zipfile
+with zipfile.ZipFile('$FEED/Tesseract.Native.runtime.$RID.$PACKAGE_VERSION.nupkg') as z:
+    for n in z.namelist():
+        if 'runtimes/' in n:
+            print(n)
+"
 
 dotnet build "$ROOT/vendor/tesseract/src/Tesseract/Tesseract.csproj" -c Release \
   -p:GeneratePackageOnBuild=false
@@ -97,6 +105,9 @@ dotnet publish "$ROOT/smoketest/SmokeTest.csproj" -c Release -o "$OUT" \
   -r "$RID" --self-contained false \
   -p:Rid="$RID" -p:PackageVersion="$PACKAGE_VERSION"
 cp -r "$ROOT/smoketest/tessdata" "$OUT/"
+
+echo "== Published output ($OUT) =="
+ls -la "$OUT"
 
 cd "$OUT"
 dotnet SmokeTest.dll
