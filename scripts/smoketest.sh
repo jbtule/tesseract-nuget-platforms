@@ -16,12 +16,31 @@
 # Usage: scripts/smoketest.sh <rid>
 set -euo pipefail
 
+# On Windows (Git Bash), plain bash-computed paths are MSYS-style
+# (e.g. "/d/a/tesseract-nuget-platforms") -- fine for bash's own file
+# operations, but native tools like dotnet.exe/NuGet can't parse them.
+# Confirmed via a real failure: a generated .nuspec embedding one of
+# these verbatim caused NuGet to misread "/d/a/..." as rooted on the
+# current drive, producing "Could not find a part of the path
+# 'C:\d\a\...'". Convert to mixed-mode (drive letter + forward slashes,
+# e.g. "D:/a/...") wherever a path gets embedded into a nuspec or
+# passed to dotnet -- understood by both bash and native tools, with no
+# backslash-escaping concerns either way. No-op on Linux/macOS, where
+# cygpath doesn't exist.
+to_native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 RID="${1:?usage: smoketest.sh <rid>}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(to_native_path "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)")"
 # shellcheck disable=SC1091
 source "$ROOT/versions.env"
 
-WORK="$(mktemp -d)"
+WORK="$(to_native_path "$(mktemp -d)")"
 FEED="$WORK/feed"
 mkdir -p "$FEED"
 REPO_URL="https://github.com/${GITHUB_REPOSITORY:-jbtule/tesseract-nuget-platforms}"
