@@ -68,7 +68,7 @@ for the binaries themselves.
 ## Our fork of charlesw/tesseract
 
 `vendor/tesseract` is a submodule pointing at
-[jbtule/tesseract#arm64-platform-detection](https://github.com/jbtule/tesseract/tree/arm64-platform-detection).
+[jbtule/Tesseract.CrossPlatform-dotnet#arm64-platform-detection](https://github.com/jbtule/Tesseract.CrossPlatform-dotnet/tree/arm64-platform-detection).
 Originally vendored as a set of small patches intended for an eventual
 upstream PR; as of 2026-09-06, decided to just own this as our fork going
 forward instead — `charlesw/tesseract` hasn't been updated in about 2

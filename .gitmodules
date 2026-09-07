@@ -1,4 +1,4 @@
 [submodule "vendor/tesseract"]
 	path = vendor/tesseract
-	url = https://github.com/jbtule/tesseract.git
+	url = https://github.com/jbtule/Tesseract.CrossPlatform-dotnet.git
 	branch = arm64-platform-detection
