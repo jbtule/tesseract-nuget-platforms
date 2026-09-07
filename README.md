@@ -34,7 +34,7 @@ pattern.
 | `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
 | `Tesseract.Native.runtime.linux-arm64` | same, native-built on a real ARM64 runner (no cross-compile needed), under `runtimes/linux-arm64/native` |
 | `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native`, for Apple Silicon |
-| `Tesseract.CrossPlatform` | The [charlesw/tesseract](https://github.com/charlesw/tesseract) C# wrapper itself, built from the patched fork in `vendor/tesseract` (see "Vendored patches" below), depending on `Tesseract.Native`. **API-compatible drop-in replacement for the stock `Tesseract` package** — same namespace/types. Install this *instead of* `Tesseract`, not alongside it. |
+| `Tesseract.CrossPlatform` | The [charlesw/tesseract](https://github.com/charlesw/tesseract) C# wrapper itself, built from the patched fork in `vendor/tesseract` (see "Our fork of charlesw/tesseract" below), depending on `Tesseract.Native`. **API-compatible drop-in replacement for the stock `Tesseract` package** — same namespace/types. Install this *instead of* `Tesseract`, not alongside it. |
 
 ### Using it
 
@@ -48,7 +48,7 @@ dotnet publish -r osx-arm64 --self-contained false
 `dotnet publish -r <rid>` (framework-dependent or self-contained — the
 standard, documented way to consume any RID-specific native package) copies
 the matching native binaries flat into the output directory, right next to
-your app itself. The patched wrapper's loader (see "Vendored patches") now
+your app itself. The patched wrapper's loader (see "Our fork of charlesw/tesseract") now
 checks that flat path automatically, so it just finds them — verified with
 an actual `dotnet publish` + run doing real OCR, not assumed.
 
@@ -65,18 +65,21 @@ below, and have to set `CustomSearchPath` yourself pointing at a manually
 arranged `<platform>` subfolder), you still only need `Tesseract.Native`
 for the binaries themselves.
 
-## Vendored patches
+## Our fork of charlesw/tesseract
 
 `vendor/tesseract` is a submodule pointing at
-[jbtule/tesseract#arm64-platform-detection](https://github.com/jbtule/tesseract/tree/arm64-platform-detection),
-a fork of `charlesw/tesseract` with several small fixes to the native
-library loader, none upstreamed as a PR yet — they're vendored here so our
-packaging can move forward without waiting on review; this section should
-be updated (or removed) once/if they land upstream. All were found (and
-verified fixed) via an actual end-to-end smoke test — construct a
-`TesseractEngine` and run real OCR against a generated image — not by
-inspection alone; several were non-obvious enough that inspection missed
-them the first time.
+[jbtule/tesseract#arm64-platform-detection](https://github.com/jbtule/tesseract/tree/arm64-platform-detection).
+Originally vendored as a set of small patches intended for an eventual
+upstream PR; as of 2026-09-06, decided to just own this as our fork going
+forward instead — `charlesw/tesseract` hasn't been updated in about 2
+years, and we're planning further changes (see "Backlog: modernize the
+interop layer" below) that go beyond small patches and aren't realistic to
+get merged upstream anyway. No upstream PR is planned. This section
+documents what's changed so far; all of it was found (and verified fixed)
+via an actual end-to-end smoke test — construct a `TesseractEngine` and
+run real OCR against a generated image — not by inspection alone; several
+issues were non-obvious enough that inspection missed them the first
+time.
 
 **The flat output-directory path is checked, not just the legacy nested
 one.** `LibraryLoader.InternalLoadLibrary()` — which backs every automatic
@@ -123,6 +126,58 @@ locations. On .NET Core/.NET 5+ it now uses
 `RuntimeInformation.ProcessArchitecture` instead, so arm64 processes
 correctly get an `arm64` subfolder there. Classic .NET Framework
 (Windows-only, x86/x64 only) is untouched.
+
+## Backlog: modernize the interop layer
+
+Decided 2026-09-06, alongside the decision to own `vendor/tesseract` as our
+fork permanently: replace the wrapper's Reflection.Emit-based interop
+mechanism with plain `[DllImport]` + `NativeLibrary.SetDllImportResolver`,
+and drop Framework/netstandard2.0 support to do it.
+
+**Why.** The current mechanism (`RuntimeDllImportAttribute` +
+`InteropRuntimeImplementer`, in `vendor/tesseract/src/Tesseract/Internal/InteropDotNet/`)
+exists because `netstandard2.0`/`net47`/`net48` have no built-in way to
+control *where* a `DllImport`'s native library gets loaded from --
+`InteropRuntimeImplementer` works around that by generating a dynamic proxy
+type at runtime via `System.Reflection.Emit` that calls into
+`LibraryLoader`'s own dlopen/LoadLibrary abstraction. It works, but:
+- `Reflection.Emit` throws `PlatformNotSupportedException` under NativeAOT --
+  a real, current compatibility gap, not just a theoretical one.
+- It's ~400 lines of IL-generation code doing something
+  `NativeLibrary.SetDllImportResolver` (built into .NET Core 3.0+/.NET 5+)
+  now does natively, with a real `[DllImport]` on every P/Invoke instead of
+  a lookalike custom attribute.
+
+**Scope.** Convert the 191 `[RuntimeDllImport]`-decorated methods --
+88 in `Interop/BaseApi.cs`, 103 in `Interop/LeptonicaApi.cs` -- to plain
+`[DllImport]`, and replace the library's 2 `InteropRuntimeImplementer.CreateInstance<T>()`
+call sites with a static constructor that calls
+`NativeLibrary.SetDllImportResolver`. The resolver callback absorbs
+`LibraryLoader`'s existing search order (flat path next to the entry
+assembly, then `runtimes/<rid>/native/`, then `CustomSearchPath`, then OS
+default) unchanged -- this is a mechanical swap of *how* the search runs,
+not a behavior change to *what* it searches.
+
+Delete once the conversion is done: `InteropRuntimeImplementer.cs`,
+`RuntimeDllImportAttribute.cs`, `UnixLibraryLoaderLogic.cs`,
+`WindowsLibraryLoaderLogic.cs`, `ILibraryLoaderLogic.cs`.
+
+**TFM change.** `NativeLibrary.SetDllImportResolver` isn't available to
+`netstandard2.0`/`net47`/`net48` at all, so this requires dropping them.
+Since we're already committed to owning this fork rather than tracking
+upstream, target `net8.0;net9.0;net10.0` only instead of trying to keep a
+Framework-compatible fallback path alongside the new one. This also drops
+the `System.Reflection.Emit` package dependency the `netstandard2.0` group
+currently pulls in (see `nuget/wrapper/Tesseract.CrossPlatform.nuspec`).
+
+**What doesn't change.** This is entirely internal to the wrapper's interop
+plumbing -- the `Tesseract.Native.*` packages (native binary layout,
+`runtimes/<rid>/native`, generic alias naming, the meta-package's dependency
+graph) need zero changes. The existing smoke test infra (real `TesseractEngine`
++ OCR against `smoketest/test.png`, across all 5 platforms) directly
+re-validates this once done; a NativeAOT-specific smoke test to actually
+prove that benefit would be new scope on top, not required for the base
+conversion.
 
 ## Backlog: Blazor WASM (`browser-wasm`)
 
