@@ -6,7 +6,7 @@
     <authors>jay@tuley.name</authors>
     <description>
       charlesw/tesseract's .NET wrapper for Tesseract OCR, built from a
-      patched fork (jbtule/Tesseract.CrossPlatform-dotnet#arm64-platform-detection) with several
+      patched fork (jbtule/Tesseract.CrossPlatform-dotnet, master branch) with several
       native-library-loading fixes -- works cross-platform with zero setup
       after a normal `dotnet publish -r &lt;rid&gt;`. Depends on
       Tesseract.Native, so installing this one package restores the
