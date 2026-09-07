@@ -328,6 +328,9 @@ and single-use, requested right before each push.
   (libjpeg-turbo, libpng, libwebp, zlib, libtiff) are compatible with your
   intended distribution before shipping publicly.
 - NativeAOT: the interop layer no longer uses `Reflection.Emit` (see "Our
-  fork of charlesw/tesseract" above), which was the concrete blocker, but
-  no NativeAOT-specific smoke test exists yet to actually prove a published
-  NativeAOT app works end to end — worth adding as a follow-up.
+  fork of charlesw/tesseract" above) -- confirmed locally via `AOT=1
+  scripts/smoketest.sh <rid>` (a self-contained NativeAOT publish + run of
+  the real packaged output, same real-OCR assertion as the normal smoke
+  test), not just by removing the API. Not wired into CI yet -- worth
+  adding as a follow-up once each runner's NativeAOT toolchain
+  prerequisites (see the script's own usage comment) are sorted out.

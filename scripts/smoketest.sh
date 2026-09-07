@@ -14,6 +14,16 @@
 # there's one script instead of a bash + PowerShell copy of the same logic.
 #
 # Usage: scripts/smoketest.sh <rid>
+#        AOT=1 scripts/smoketest.sh <rid>   -- NativeAOT publish + run instead
+#          of the normal framework-dependent one, for local use: proves the
+#          interop layer's plain [DllImport] + NativeLibrary.SetDllImportResolver
+#          mechanism (see README, "Our fork of charlesw/tesseract") actually
+#          works under NativeAOT, which its Reflection.Emit-based predecessor
+#          could not (PlatformNotSupportedException). Not wired into CI --
+#          requires the platform's native AOT toolchain (e.g. Xcode command
+#          line tools on macOS, clang/lld on Linux, VS Build Tools on
+#          Windows) to already be installed locally; run for whichever RID
+#          matches the machine you're on.
 set -euo pipefail
 
 # On Windows (Git Bash), plain bash-computed paths are MSYS-style
@@ -54,6 +64,17 @@ source "$ROOT/versions.env"
 WORK="$(to_native_path "$(mktemp -d)")"
 FEED="$WORK/feed"
 mkdir -p "$FEED"
+# Isolate the restore from the machine's ambient global NuGet cache: without
+# this, a rerun against an unchanged PACKAGE_VERSION silently restores
+# whatever Tesseract.CrossPlatform/Tesseract.Native.runtime.<rid> that
+# version resolved to last time (a prior local run, or the real published
+# package) instead of what this run just packed -- NuGet keys its global
+# cache on id+version only, not content. Confirmed via a real repro: a
+# stale cached 5.5.2.2 silently shadowed a freshly-packed one with actual
+# code changes, of all things. Harmless in CI (each job gets a fresh
+# runner), but this is what makes reruns on a dev machine actually
+# trustworthy.
+export NUGET_PACKAGES="$WORK/packages"
 REPO_URL="https://github.com/${GITHUB_REPOSITORY:-jbtule/tesseract-nuget-platforms}"
 
 gen_file_entries "$ROOT/stage/$RID/native" "runtimes/$RID/native" > "$WORK/native-files.xml"
@@ -124,13 +145,27 @@ curl -sL -o "$ROOT/smoketest/tessdata/eng.traineddata" \
   "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata"
 
 OUT="$WORK/out"
-dotnet publish "$ROOT/smoketest/SmokeTest.csproj" -c Release -o "$OUT" \
-  -r "$RID" --self-contained false \
-  -p:Rid="$RID" -p:PackageVersion="$PACKAGE_VERSION"
+if [ "${AOT:-0}" = "1" ]; then
+  echo "== AOT smoke test: publishing a self-contained NativeAOT binary =="
+  dotnet publish "$ROOT/smoketest/SmokeTest.csproj" -c Release -o "$OUT" \
+    -r "$RID" --self-contained true \
+    -p:Rid="$RID" -p:PackageVersion="$PACKAGE_VERSION" -p:PublishAot=true
+else
+  dotnet publish "$ROOT/smoketest/SmokeTest.csproj" -c Release -o "$OUT" \
+    -r "$RID" --self-contained false \
+    -p:Rid="$RID" -p:PackageVersion="$PACKAGE_VERSION"
+fi
 cp -r "$ROOT/smoketest/tessdata" "$OUT/"
 
 echo "== Published output ($OUT) =="
 ls -la "$OUT"
 
 cd "$OUT"
-dotnet SmokeTest.dll
+if [ "${AOT:-0}" = "1" ]; then
+  case "$RID" in
+    win-*) ./SmokeTest.exe ;;
+    *) ./SmokeTest ;;
+  esac
+else
+  dotnet SmokeTest.dll
+fi
