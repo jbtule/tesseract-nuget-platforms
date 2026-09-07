@@ -328,14 +328,11 @@ and single-use, requested right before each push.
 
 ## Known gaps / not yet done
 
-- **Trusted Publishing setup** (above) needs to be done before the first
-  release will actually publish.
-- **Package ownership**: `Tesseract.Native`, `Tesseract.Native.runtime.*`,
-  and `Tesseract.CrossPlatform` were unclaimed on nuget.org as of writing —
-  verify that's still true and claim them under your account before
-  relying on the ids. (Trusted Publishing policies can only be set up for
-  ids you already own or that don't exist yet, so this is somewhat
-  self-resolving on first publish, but check before you're relying on it.)
+- Trusted Publishing is set up and packages are live on nuget.org.
+  `v5.5.2` and `v5.5.2.1` were unlisted after real bugs (missing transitive
+  native dependencies/wrong hardcoded DLL names, then a zero-dependency
+  meta-package respectively); `v5.5.2.2` is the current good release. See
+  `versions.env` for the versioning scheme.
 - No `osx-x64` (Intel Mac): dropped deliberately — declining relevance plus
   GH's `macos-13` runner pool queuing for 15+ minutes before even starting a
   build. `win-arm64` was added in its place as the more useful target.
