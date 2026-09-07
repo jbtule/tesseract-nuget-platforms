@@ -72,10 +72,10 @@ for the binaries themselves.
 Originally vendored as a set of small patches intended for an eventual
 upstream PR; as of 2026-09-06, decided to just own this as our fork going
 forward instead — `charlesw/tesseract` hasn't been updated in about 2
-years, and we're planning further changes (see "Backlog: modernize the
-interop layer" below) that go beyond small patches and aren't realistic to
-get merged upstream anyway. No upstream PR is planned. This section
-documents what's changed so far; all of it was found (and verified fixed)
+years, and we've made (and expect to keep making) changes that go beyond
+small patches and aren't realistic to get merged upstream anyway. No
+upstream PR is planned. This section documents what's changed so far; all
+of it was found (and verified fixed)
 via an actual end-to-end smoke test — construct a `TesseractEngine` and
 run real OCR against a generated image — not by inspection alone; several
 issues were non-obvious enough that inspection missed them the first
@@ -124,60 +124,42 @@ decided "x86" vs "x64" purely from `IntPtr.Size`, so any 64-bit ARM process
 could never coexist in the legacy nested-by-platform-name fallback
 locations. On .NET Core/.NET 5+ it now uses
 `RuntimeInformation.ProcessArchitecture` instead, so arm64 processes
-correctly get an `arm64` subfolder there. Classic .NET Framework
-(Windows-only, x86/x64 only) is untouched.
+correctly get an `arm64` subfolder there. (Classic .NET Framework was
+x86/x64 only regardless; moot now that Framework support is dropped
+entirely — see the interop-layer rewrite below.)
 
-## Backlog: modernize the interop layer
-
-Decided 2026-09-06, alongside the decision to own `vendor/tesseract` as our
-fork permanently: replace the wrapper's Reflection.Emit-based interop
-mechanism with plain `[DllImport]` + `NativeLibrary.SetDllImportResolver`,
-and drop Framework/netstandard2.0 support to do it.
-
-**Why.** The current mechanism (`RuntimeDllImportAttribute` +
-`InteropRuntimeImplementer`, in `vendor/tesseract/src/Tesseract/Internal/InteropDotNet/`)
-exists because `netstandard2.0`/`net47`/`net48` have no built-in way to
-control *where* a `DllImport`'s native library gets loaded from --
-`InteropRuntimeImplementer` works around that by generating a dynamic proxy
-type at runtime via `System.Reflection.Emit` that calls into
-`LibraryLoader`'s own dlopen/LoadLibrary abstraction. It works, but:
-- `Reflection.Emit` throws `PlatformNotSupportedException` under NativeAOT --
-  a real, current compatibility gap, not just a theoretical one.
-- It's ~400 lines of IL-generation code doing something
-  `NativeLibrary.SetDllImportResolver` (built into .NET Core 3.0+/.NET 5+)
-  now does natively, with a real `[DllImport]` on every P/Invoke instead of
-  a lookalike custom attribute.
-
-**Scope.** Convert the 191 `[RuntimeDllImport]`-decorated methods --
-88 in `Interop/BaseApi.cs`, 103 in `Interop/LeptonicaApi.cs` -- to plain
-`[DllImport]`, and replace the library's 2 `InteropRuntimeImplementer.CreateInstance<T>()`
-call sites with a static constructor that calls
-`NativeLibrary.SetDllImportResolver`. The resolver callback absorbs
-`LibraryLoader`'s existing search order (flat path next to the entry
-assembly, then `runtimes/<rid>/native/`, then `CustomSearchPath`, then OS
-default) unchanged -- this is a mechanical swap of *how* the search runs,
-not a behavior change to *what* it searches.
-
-Delete once the conversion is done: `InteropRuntimeImplementer.cs`,
-`RuntimeDllImportAttribute.cs`, `UnixLibraryLoaderLogic.cs`,
-`WindowsLibraryLoaderLogic.cs`, `ILibraryLoaderLogic.cs`.
-
-**TFM change.** `NativeLibrary.SetDllImportResolver` isn't available to
-`netstandard2.0`/`net47`/`net48` at all, so this requires dropping them.
-Since we're already committed to owning this fork rather than tracking
-upstream, target `net8.0;net9.0;net10.0` only instead of trying to keep a
-Framework-compatible fallback path alongside the new one. This also drops
-the `System.Reflection.Emit` package dependency the `netstandard2.0` group
-currently pulls in (see `nuget/wrapper/Tesseract.CrossPlatform.nuspec`).
-
-**What doesn't change.** This is entirely internal to the wrapper's interop
-plumbing -- the `Tesseract.Native.*` packages (native binary layout,
-`runtimes/<rid>/native`, generic alias naming, the meta-package's dependency
-graph) need zero changes. The existing smoke test infra (real `TesseractEngine`
-+ OCR against `smoketest/test.png`, across all 5 platforms) directly
-re-validates this once done; a NativeAOT-specific smoke test to actually
-prove that benefit would be new scope on top, not required for the base
-conversion.
+**Interop layer rewritten to plain `[DllImport]` + `NativeLibrary.SetDllImportResolver`,
+dropping Framework/netstandard2.0 support (`net8.0;net9.0;net10.0` only).**
+The wrapper's original mechanism —
+[`RuntimeDllImportAttribute`](https://github.com/AndreyAkinshin/InteropDotNet)
++ `InteropRuntimeImplementer` — built a dynamic proxy type via
+`System.Reflection.Emit` at first use: a fresh delegate type and P/Invoke
+stub generated in IL for every one of the 191 native methods, purely to
+work around `netstandard2.0`/`net47`/`net48` having no built-in way to
+control *where* a `DllImport` loads its native library from. Real, current
+problems with that: `Reflection.Emit` throws `PlatformNotSupportedException`
+under NativeAOT, and ~400 lines of IL-generation code were doing something
+`NativeLibrary.SetDllImportResolver` (built into .NET Core 3.0+) now does
+natively. Converted `ITessApiSignatures`/`ILeptonicaApiSignatures`'s 88 + 103
+methods to real `[DllImport]` `static extern` members directly on
+`TessApi`/`LeptonicaApi`, each registering
+`LibraryLoader.Resolve` — a `DllImportResolver` that reuses the exact same
+search order as before (`CustomSearchPath` → `runtimes/<rid>/native/` →
+executing-assembly dir → app-domain base dir → `bin/` → working directory,
+flat-path-first at each step) via `NativeLibrary.TryLoad` instead of the old
+per-OS dlopen/`kernel32` P/Invoke wrappers, which are deleted along with
+`InteropRuntimeImplementer.cs` and `RuntimeDllImportAttribute.cs`. Requires
+dropping `netstandard2.0`/`net47`/`net48` (no `NativeLibrary.SetDllImportResolver`
+there at all) in favor of `net8.0;net9.0;net10.0`; `Tesseract.Drawing` and
+the one retained unit-test project (`Tesseract.NetCore31Tests`, the
+`Tesseract.Net48Tests` project was redundant once net48 is gone and was
+deleted) were retargeted to match. Verified locally with a real
+`TesseractEngine` + OCR run (`CustomSearchPath` pointed at a Homebrew
+tesseract/leptonica install) producing correct output on both net8.0 and
+net10.0; the existing 5-platform smoke test in CI re-validates this same
+conversion end to end via the actual packaged output. `Tesseract.Native.*` packaging (native binary layout,
+`runtimes/<rid>/native`, generic alias naming) is unchanged — this was
+entirely internal to the wrapper's interop plumbing.
 
 ## Backlog: Blazor WASM (`browser-wasm`)
 
@@ -345,3 +327,7 @@ and single-use, requested right before each push.
   each package, but double-check the codec dependencies' licenses
   (libjpeg-turbo, libpng, libwebp, zlib, libtiff) are compatible with your
   intended distribution before shipping publicly.
+- NativeAOT: the interop layer no longer uses `Reflection.Emit` (see "Our
+  fork of charlesw/tesseract" above), which was the concrete blocker, but
+  no NativeAOT-specific smoke test exists yet to actually prove a published
+  NativeAOT app works end to end — worth adding as a follow-up.
