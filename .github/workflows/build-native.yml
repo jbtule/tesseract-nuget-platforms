@@ -53,6 +53,19 @@ jobs:
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/linux-x64/native"
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+      # Only on failure: a golden-fixture mismatch only tells us the two file
+      # paths in the console log, not what actually differs -- this is the
+      # only way to see the real content without reproducing the exact
+      # platform/architecture locally (emulation is not a reliable substitute,
+      # confirmed the hard way: an x64-under-QEMU run produced a wall of
+      # unrelated engine-init crashes instead of the real signal).
+      - name: Upload actual test output (only on failure, for diffing against Results/)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-runs-linux-x64
+          path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
+          if-no-files-found: ignore
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         run: bash scripts/smoketest.sh linux-x64
 
@@ -90,6 +103,13 @@ jobs:
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/linux-arm64/native"
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+      - name: Upload actual test output (only on failure, for diffing against Results/)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-runs-linux-arm64
+          path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
+          if-no-files-found: ignore
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         run: bash scripts/smoketest.sh linux-arm64
 
@@ -119,6 +139,13 @@ jobs:
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/osx-arm64/native"
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+      - name: Upload actual test output (only on failure, for diffing against Results/)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-runs-osx-arm64
+          path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
+          if-no-files-found: ignore
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         run: bash scripts/smoketest.sh osx-arm64
 
@@ -148,6 +175,13 @@ jobs:
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/win-x64/native"
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+      - name: Upload actual test output (only on failure, for diffing against Results/)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-runs-win-x64
+          path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
+          if-no-files-found: ignore
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         shell: bash
         run: bash scripts/smoketest.sh win-x64
@@ -185,6 +219,13 @@ jobs:
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/win-arm64/native"
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+      - name: Upload actual test output (only on failure, for diffing against Results/)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-runs-win-arm64
+          path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
+          if-no-files-found: ignore
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         shell: bash
         run: bash scripts/smoketest.sh win-arm64
