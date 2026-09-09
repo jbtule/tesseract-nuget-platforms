@@ -151,9 +151,11 @@ per-OS dlopen/`kernel32` P/Invoke wrappers, which are deleted along with
 `InteropRuntimeImplementer.cs` and `RuntimeDllImportAttribute.cs`. Requires
 dropping `netstandard2.0`/`net47`/`net48` (no `NativeLibrary.SetDllImportResolver`
 there at all) in favor of `net8.0;net9.0;net10.0`; `Tesseract.Drawing` and
-the one retained unit-test project (`Tesseract.NetCore31Tests`, the
-`Tesseract.Net48Tests` project was redundant once net48 is gone and was
-deleted) were retargeted to match. Verified locally with a real
+the one retained unit-test project (`Tesseract.Tests` -- the old
+`Tesseract.Net48Tests`/`Tesseract.NetCore31Tests` split from
+Framework-vs-Core-3.1 days no longer had a reason to exist once both
+retargeted to the same net8/9/10 set, so they were consolidated into a
+single project under its original name) were retargeted to match. Verified locally with a real
 `TesseractEngine` + OCR run (`CustomSearchPath` pointed at a Homebrew
 tesseract/leptonica install) producing correct output on both net8.0 and
 net10.0; the existing 5-platform smoke test in CI re-validates this same

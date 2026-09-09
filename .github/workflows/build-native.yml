@@ -30,7 +30,13 @@ jobs:
           submodules: true # vendor/tesseract, needed to build+smoke-test the wrapper
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
+          # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
+          # target needs the matching runtime actually installed, not just
+          # an SDK new enough to compile against it.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build autoconf-archive
       - run: bash scripts/build-native.sh linux-x64
@@ -43,6 +49,10 @@ jobs:
           name: native-linux-x64
           path: stage/linux-x64
           if-no-files-found: error
+      - name: Unit tests (against this job's freshly-built, pinned-version native libs)
+        run: |
+          export TESSERACT_NATIVE_DIR="$PWD/stage/linux-x64/native"
+          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         run: bash scripts/smoketest.sh linux-x64
 
@@ -54,7 +64,13 @@ jobs:
           submodules: true
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
+          # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
+          # target needs the matching runtime actually installed, not just
+          # an SDK new enough to compile against it.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build autoconf-archive
       # vcpkg downloads its own known-good CMake when the system one is too
@@ -70,6 +86,10 @@ jobs:
           name: native-linux-arm64
           path: stage/linux-arm64
           if-no-files-found: error
+      - name: Unit tests (against this job's freshly-built, pinned-version native libs)
+        run: |
+          export TESSERACT_NATIVE_DIR="$PWD/stage/linux-arm64/native"
+          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         run: bash scripts/smoketest.sh linux-arm64
 
@@ -81,7 +101,13 @@ jobs:
           submodules: true
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
+          # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
+          # target needs the matching runtime actually installed, not just
+          # an SDK new enough to compile against it.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - run: brew install ninja autoconf-archive
       - run: bash scripts/build-native.sh osx-arm64
       - uses: actions/upload-artifact@v4
@@ -89,6 +115,10 @@ jobs:
           name: native-osx-arm64
           path: stage/osx-arm64
           if-no-files-found: error
+      - name: Unit tests (against this job's freshly-built, pinned-version native libs)
+        run: |
+          export TESSERACT_NATIVE_DIR="$PWD/stage/osx-arm64/native"
+          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         run: bash scripts/smoketest.sh osx-arm64
 
@@ -100,13 +130,24 @@ jobs:
           submodules: true
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
+          # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
+          # target needs the matching runtime actually installed, not just
+          # an SDK new enough to compile against it.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - run: pwsh scripts/build-native.ps1 win-x64
       - uses: actions/upload-artifact@v4
         with:
           name: native-win-x64
           path: stage/win-x64
           if-no-files-found: error
+      - name: Unit tests (against this job's freshly-built, pinned-version native libs)
+        shell: bash
+        run: |
+          export TESSERACT_NATIVE_DIR="$PWD/stage/win-x64/native"
+          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         shell: bash
         run: bash scripts/smoketest.sh win-x64
@@ -126,13 +167,24 @@ jobs:
           submodules: true
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
+          # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
+          # target needs the matching runtime actually installed, not just
+          # an SDK new enough to compile against it.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - run: pwsh scripts/build-native.ps1 win-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: native-win-arm64
           path: stage/win-arm64
           if-no-files-found: error
+      - name: Unit tests (against this job's freshly-built, pinned-version native libs)
+        shell: bash
+        run: |
+          export TESSERACT_NATIVE_DIR="$PWD/stage/win-arm64/native"
+          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Smoke test (real OCR via the packaged output, no build-only shortcuts)
         shell: bash
         run: bash scripts/smoketest.sh win-arm64
