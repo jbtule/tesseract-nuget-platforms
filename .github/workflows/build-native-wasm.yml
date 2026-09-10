@@ -1,21 +1,11 @@
 name: Build native libraries (browser-wasm)
 
+# workflow_call/workflow_dispatch only -- see build-native.yml's own comment for
+# why (ci.yml is the real pull_request/push entry point; a direct trigger here
+# too would double-run this job on every relevant change).
 on:
   workflow_call:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "scripts/build-native-wasm.sh"
-      - "versions.env"
-      - "nuget/wasm/**"
-      - ".github/workflows/build-native-wasm.yml"
-  push:
-    branches: [main]
-    paths:
-      - "scripts/build-native-wasm.sh"
-      - "versions.env"
-      - "nuget/wasm/**"
-      - ".github/workflows/build-native-wasm.yml"
 
 jobs:
   # Single job, no matrix: unlike win/linux/mac x64/ARM64, an Emscripten
@@ -25,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true # vendor/tesseract, needed to build the wrapper + Tesseract.CrossPlatform.SkiaSharp
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
@@ -40,11 +32,16 @@ jobs:
       - name: Install ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
       - run: bash scripts/build-native-wasm.sh
-      # Uploaded even though there's no smoke test to run yet (Phase 4 of
-      # the WASM backlog plan) -- release.yml needs this artifact to pack
-      # Tesseract.Native.browser-wasm regardless.
       - uses: actions/upload-artifact@v4
         with:
           name: native-browser-wasm
           path: stage/browser-wasm
           if-no-files-found: error
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Real OCR against smoketest-wasm/, headlessly via Playwright -- not a
+      # build-only check. Matches this repo's "real OCR, not build-only" bar
+      # for every other RID (see scripts/smoketest.sh's own rationale).
+      - name: Smoke test (real OCR via the packaged output, headless Chromium)
+        run: bash scripts/smoketest-wasm.sh

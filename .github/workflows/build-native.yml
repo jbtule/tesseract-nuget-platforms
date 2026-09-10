@@ -1,25 +1,13 @@
 name: Build native libraries
 
+# workflow_call/workflow_dispatch only -- ci.yml is the actual pull_request/push
+# entry point, calling this plus build-native-wasm.yml plus a preview-pack job. A
+# direct pull_request/push trigger here too would double-run this whole 5-RID
+# matrix on every relevant change (once from that trigger, once via ci.yml's own
+# `uses:` call) -- confirmed as the real reason for removing it, not just tidiness.
 on:
   workflow_call:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "scripts/**"
-      - "versions.env"
-      - "nuget/**"
-      - "smoketest/**"
-      - "vendor/tesseract"
-      - ".github/workflows/build-native.yml"
-  push:
-    branches: [main]
-    paths:
-      - "scripts/**"
-      - "versions.env"
-      - "nuget/**"
-      - "smoketest/**"
-      - "vendor/tesseract"
-      - ".github/workflows/build-native.yml"
 
 jobs:
   linux-x64:

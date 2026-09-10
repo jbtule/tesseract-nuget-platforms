@@ -1,0 +1,203 @@
+name: Pack NuGet packages
+
+# Reusable workflow: packs every NuGet package this repo produces (runtime.*,
+# meta, wrapper, browser-wasm native, SkiaSharp) at the given `version`, and
+# either uploads them as a workflow artifact only (publish: false -- ci.yml's
+# preview-pack job) or also pushes to nuget.org (publish: true -- release.yml).
+# Shared so the two callers can't drift into two different packing recipes.
+#
+# Expects the caller's workflow run to already have every native-<rid> and
+# native-browser-wasm artifact uploaded (by build-native.yml/build-native-wasm.yml
+# jobs earlier in the same run) -- this workflow doesn't build native libraries
+# itself, only packs what's already there.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The exact NuGet version to pack every package at (e.g. 5.5.2.200 or 5.5.2.200-preview.abc1234).
+        required: true
+        type: string
+      publish:
+        description: Push the packed .nupkgs to nuget.org via Trusted Publishing. false just packs + uploads a workflow artifact.
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      NUGET_USER:
+        required: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required to request the OIDC token for Trusted Publishing, only used when publish: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true # vendor/tesseract is a submodule, needed to build the wrapper + SkiaSharp packages
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Load versions.env
+        # $GITHUB_ENV's file-command parser rejects anything that isn't a
+        # strict KEY=VALUE line -- versions.env's comment/blank lines break
+        # it, so strip them here. Then override PACKAGE_VERSION with this
+        # workflow's own `version` input -- everything below still reads
+        # $PACKAGE_VERSION unchanged, only its value differs between a real
+        # release and a preview pack.
+        run: |
+          grep -v '^\s*#' versions.env | grep -v '^\s*$' >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: stage-raw
+
+      - name: Lay out staged native assets as stage/<rid-or-browser-wasm>/...
+        run: |
+          set -euo pipefail
+          mkdir -p stage
+          for d in stage-raw/native-*; do
+            rid="$(basename "$d" | sed 's/^native-//')"
+            mv "$d" "stage/$rid"
+          done
+          find stage -maxdepth 2
+
+      # See nuget/runtime/Tesseract.Native.runtime.nuspec's own
+      # NATIVE_FILES_PLACEHOLDER comment for why this generates explicit,
+      # non-wildcard <file> entries instead of using a glob src.
+      - name: Pack runtime packages
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          mkdir -p /tmp/nuspecs
+
+          gen_file_entries() {
+            local dir="$1" target="$2" f
+            for f in "$dir"/*; do
+              [ -f "$f" ] || continue
+              printf '    <file src="%s" target="%s" />\n' "$f" "$target"
+            done
+          }
+
+          for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-arm64; do
+            nuspec="/tmp/nuspecs/Tesseract.Native.runtime.$rid.nuspec"
+            gen_file_entries "$GITHUB_WORKSPACE/stage/$rid/native" "runtimes/$rid/native" > /tmp/nuspecs/native-files.xml
+            gen_file_entries "$GITHUB_WORKSPACE/stage/$rid/licenses" "licenses" > /tmp/nuspecs/license-files.xml
+            sed \
+              -e "s|[$]id[$]|Tesseract.Native.runtime.$rid|g" \
+              -e "s|[$]rid[$]|$rid|g" \
+              -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+              -e "s|[$]vcpkgRef[$]|$VCPKG_REF|g" \
+              -e "s|[$]repoUrl[$]|$repo_url|g" \
+              -e "/NATIVE_FILES_PLACEHOLDER/r /tmp/nuspecs/native-files.xml" \
+              -e "/NATIVE_FILES_PLACEHOLDER/d" \
+              -e "/LICENSE_FILES_PLACEHOLDER/r /tmp/nuspecs/license-files.xml" \
+              -e "/LICENSE_FILES_PLACEHOLDER/d" \
+              nuget/runtime/Tesseract.Native.runtime.nuspec > "$nuspec"
+            dotnet pack nuget/runtime/RuntimePackage.csproj -c Release -o out \
+              -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
+          done
+
+      - name: Pack browser-wasm native package
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          mkdir -p /tmp/nuspecs
+
+          gen_file_entries() {
+            local dir="$1" target="$2" f
+            for f in "$dir"/*; do
+              [ -f "$f" ] || continue
+              printf '    <file src="%s" target="%s" />\n' "$f" "$target"
+            done
+          }
+
+          nuspec=/tmp/nuspecs/Tesseract.Native.browser-wasm.nuspec
+          gen_file_entries "$GITHUB_WORKSPACE/stage/browser-wasm/native" "build/native" > /tmp/nuspecs/native-files.xml
+          gen_file_entries "$GITHUB_WORKSPACE/stage/browser-wasm/licenses" "licenses" > /tmp/nuspecs/license-files.xml
+          sed \
+            -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+            -e "s|[$]repoUrl[$]|$repo_url|g" \
+            -e "/NATIVE_FILES_PLACEHOLDER/r /tmp/nuspecs/native-files.xml" \
+            -e "/NATIVE_FILES_PLACEHOLDER/d" \
+            -e "/LICENSE_FILES_PLACEHOLDER/r /tmp/nuspecs/license-files.xml" \
+            -e "/LICENSE_FILES_PLACEHOLDER/d" \
+            nuget/wasm/Tesseract.Native.browser-wasm.nuspec > "$nuspec"
+          dotnet pack nuget/wasm/WasmNativePackage.csproj -c Release -o out \
+            -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
+
+      - name: Pack meta package
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          nuspec=/tmp/nuspecs/Tesseract.Native.nuspec
+          mkdir -p /tmp/nuspecs
+          sed \
+            -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+            -e "s|[$]repoUrl[$]|$repo_url|g" \
+            nuget/meta/Tesseract.Native.nuspec > "$nuspec"
+          dotnet pack nuget/meta/Tesseract.Native.csproj -c Release -o out \
+            -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
+
+      # AssemblyName=Tesseract.CrossPlatform (not the default "Tesseract",
+      # from the project file name): a generic native "tesseract.dll" alias
+      # (see Constants.cs in the vendored fix) and a managed "Tesseract.dll"
+      # would otherwise collide on a case-insensitive filesystem (Windows) --
+      # confirmed via a real NETSDK1152 "multiple publish output files"
+      # failure. Namespace and types are untouched, only the built file
+      # name changes.
+      - name: Build patched wrapper (vendor/tesseract)
+        run: |
+          set -euo pipefail
+          dotnet build vendor/tesseract/src/Tesseract/Tesseract.csproj -c Release \
+            -p:GeneratePackageOnBuild=false -p:AssemblyName=Tesseract.CrossPlatform
+
+      - name: Pack wrapper package
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          nuspec=/tmp/nuspecs/Tesseract.CrossPlatform.nuspec
+          mkdir -p /tmp/nuspecs
+          sed \
+            -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+            -e "s|[$]repoUrl[$]|$repo_url|g" \
+            -e "s|[$]wrapperBuild[$]|$GITHUB_WORKSPACE/vendor/tesseract/src/Tesseract/bin/Release|g" \
+            nuget/wrapper/Tesseract.CrossPlatform.nuspec > "$nuspec"
+          dotnet pack nuget/wrapper/Tesseract.CrossPlatform.csproj -c Release -o out \
+            -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
+
+      - name: Pack Tesseract.CrossPlatform.SkiaSharp
+        run: |
+          set -euo pipefail
+          dotnet pack vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/Tesseract.CrossPlatform.SkiaSharp.csproj \
+            -c Release -o out -p:Version="$PACKAGE_VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: out/*.nupkg
+
+      # Exchanges this job's GitHub OIDC token for a nuget.org API key that's
+      # valid for 1 hour and single-use-per-token -- requested right before
+      # pushing, per nuget.org's guidance, rather than earlier in the job.
+      - name: NuGet login (OIDC -> temp API key)
+        if: inputs.publish
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to nuget.org
+        if: inputs.publish
+        run: |
+          set -euo pipefail
+          for f in out/*.nupkg; do
+            dotnet nuget push "$f" \
+              --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done

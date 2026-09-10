@@ -1,0 +1,70 @@
+name: CI
+
+# The actual pull_request/push trigger for this repo's native builds --
+# build-native.yml and build-native-wasm.yml are workflow_call-only (see their
+# own comments) specifically so this is the *one* place that triggers them,
+# avoiding a double-run of either. Also packs a preview build of every NuGet
+# package (uploaded as a workflow artifact only, never pushed to nuget.org --
+# see pack.yml) so a change can be restored/tested from a local feed without
+# a real release, which is a real pain to walk back (unlisting a published
+# version on nuget.org).
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "versions.env"
+      - "nuget/**"
+      - "smoketest/**"
+      - "smoketest-wasm/**"
+      - "vendor/tesseract"
+      - ".github/workflows/build-native.yml"
+      - ".github/workflows/build-native-wasm.yml"
+      - ".github/workflows/pack.yml"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "versions.env"
+      - "nuget/**"
+      - "smoketest/**"
+      - "smoketest-wasm/**"
+      - "vendor/tesseract"
+      - ".github/workflows/build-native.yml"
+      - ".github/workflows/build-native-wasm.yml"
+      - ".github/workflows/pack.yml"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  build-native:
+    uses: ./.github/workflows/build-native.yml
+
+  build-native-wasm:
+    uses: ./.github/workflows/build-native-wasm.yml
+
+  compute-preview-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: compute
+        # PACKAGE_VERSION-preview.<short-sha>: a dot-separated prerelease
+        # identifier, not a "+build" metadata suffix -- NuGet/SemVer2 do
+        # define build metadata, but it isn't reliably preserved through
+        # every NuGet tool/feed in practice, where a plain prerelease label
+        # is universally supported and still sorts correctly (before the
+        # same revision's stable release).
+        run: |
+          set -euo pipefail
+          pkg_version="$(grep -m1 '^PACKAGE_VERSION=' versions.env | cut -d= -f2)"
+          sha="$(git rev-parse --short HEAD)"
+          echo "version=${pkg_version}-preview.${sha}" >> "$GITHUB_OUTPUT"
+
+  pack-preview:
+    needs: [build-native, build-native-wasm, compute-preview-version]
+    uses: ./.github/workflows/pack.yml
+    with:
+      version: ${{ needs.compute-preview-version.outputs.version }}
+      publish: false

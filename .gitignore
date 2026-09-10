@@ -5,3 +5,7 @@ bin/
 obj/
 smoketest/nuget.config
 smoketest/tessdata/
+smoketest-wasm/nuget.config
+smoketest-wasm/wwwroot/tessdata/
+smoketest-wasm/wwwroot/test.png
+smoketest-wasm/node_modules/

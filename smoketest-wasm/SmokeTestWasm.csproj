@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <!--
+    CI smoke test for browser-wasm: proves the *packaged*
+    Tesseract.CrossPlatform + Tesseract.Native.browser-wasm +
+    Tesseract.CrossPlatform.SkiaSharp actually work together in a real
+    browser, end to end (real OCR against test.png), not just that the
+    native build linked. Mirrors ../smoketest/'s own rationale for the
+    other 5 RIDs: a build-only check already let real bugs through
+    there.
+
+    Uses Tesseract.CrossPlatform.SkiaSharp to decode test.png: the
+    browser-wasm native build has no image codec libraries linked in (see
+    the WASM backlog plan's codec-drop decision), so Pix.LoadFromFile
+    can't be used here the way ../smoketest/Program.cs uses it for the
+    other 5 RIDs.
+
+    Deliberately does NOT reference the real Tesseract.Native
+    meta-package: same reasoning as ../smoketest/SmokeTest.csproj's own
+    comment. It depends on all 5 desktop runtime packages, none of which
+    exist in a wasm-only CI job. References Tesseract.Native.browser-wasm
+    directly, restored against a local folder feed (see
+    scripts/smoketest-wasm.sh) containing that package, the just-built
+    Tesseract.CrossPlatform and Tesseract.CrossPlatform.SkiaSharp, and a
+    zero-dependency stub Tesseract.Native (../smoketest/stub/) that exists
+    purely to satisfy Tesseract.CrossPlatform's normal dependency on it.
+
+    (PackageVersion) is supplied via -p: on the command line.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="Tesseract.CrossPlatform" Version="$(PackageVersion)" />
+    <PackageReference Include="Tesseract.Native.browser-wasm" Version="$(PackageVersion)" />
+    <PackageReference Include="Tesseract.CrossPlatform.SkiaSharp" Version="$(PackageVersion)" />
+  </ItemGroup>
+
+  <!--
+    wwwroot/test.png and wwwroot/tessdata/eng.traineddata are placed here by
+    scripts/smoketest-wasm.sh before publish (copied/downloaded, not
+    committed, see .gitignore), not referenced via an MSBuild <None Link>
+    from outside the project: physical files directly under wwwroot/ are
+    what the SDK's static-web-assets pipeline picks up for a real `dotnet
+    publish`, confirmed the reliable way to do this rather than assumed.
+  -->
+
+</Project>
