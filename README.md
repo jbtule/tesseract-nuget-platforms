@@ -28,13 +28,15 @@ pattern.
 
 | Package | What it is |
 |---|---|
-| `Tesseract.Native` | Meta-package. Depends on all four runtime packages below; NuGet's RID graph picks the right one for whatever you're building/publishing. Install this one. |
+| `Tesseract.Native` | Meta-package. Depends on all five runtime packages below; NuGet's RID graph picks the right one for whatever you're building/publishing. Install this one. |
 | `Tesseract.Native.runtime.win-x64` | `tesseract*.dll` + `leptonica*.dll` under `runtimes/win-x64/native` |
 | `Tesseract.Native.runtime.win-arm64` | same, native-built on a real ARM64 Windows runner (no cross-compile needed), under `runtimes/win-arm64/native` |
 | `Tesseract.Native.runtime.linux-x64` | `libtesseract*.so*` + `libleptonica*.so*` under `runtimes/linux-x64/native` |
 | `Tesseract.Native.runtime.linux-arm64` | same, native-built on a real ARM64 runner (no cross-compile needed), under `runtimes/linux-arm64/native` |
 | `Tesseract.Native.runtime.osx-arm64` | `libtesseract*.dylib` + `libleptonica*.dylib` under `runtimes/osx-arm64/native`, for Apple Silicon |
+| `Tesseract.Native.browser-wasm` | Static `tesseract.a`/`leptonica.a` for `browser-wasm`, injected automatically via `<NativeFileReference>` at `dotnet publish -r browser-wasm` time. Deliberately **not** part of `Tesseract.Native`'s dependency group (a fundamentally different, statically-linked consumption shape) — install it explicitly alongside `Tesseract.CrossPlatform` for a Blazor wasm app. See "Blazor WASM (`browser-wasm`) support" below. |
 | `Tesseract.CrossPlatform` | The [charlesw/tesseract](https://github.com/charlesw/tesseract) C# wrapper itself, built from the patched fork in `vendor/tesseract` (see "Our fork of charlesw/tesseract" below), depending on `Tesseract.Native`. **API-compatible drop-in replacement for the stock `Tesseract` package** — same namespace/types. Install this *instead of* `Tesseract`, not alongside it. |
+| `Tesseract.CrossPlatform.SkiaSharp` | Optional SkiaSharp-based `Pix`/`SKBitmap` interop — a cross-platform (`browser-wasm` included) alternative to `Tesseract.Drawing`'s Windows-only `System.Drawing.Common` converters. Install alongside `Tesseract.CrossPlatform` when you need to decode image files under wasm, where Leptonica itself ships with no codecs (see "Blazor WASM" below for why). |
 
 ### Using it
 
@@ -163,61 +165,68 @@ conversion end to end via the actual packaged output. `Tesseract.Native.*` packa
 `runtimes/<rid>/native`, generic alias naming) is unchanged — this was
 entirely internal to the wrapper's interop plumbing.
 
-## Backlog: Blazor WASM (`browser-wasm`)
+## Blazor WASM (`browser-wasm`) support
 
-Started 2026-09-07, in progress — native build, interop, and packaging
-are done and verified; CI wiring for the wasm build and an end-to-end
-smoke test are what's left. Notes for whoever picks this up next:
+Started 2026-09-07, landed and verified end to end in real CI — native
+build, interop, packaging, and CI wiring (build, real-OCR smoke test, and
+the full `Tesseract.Tests`/`Tesseract.Tests.SkiaSharp` suites, all headless
+via Playwright) are all done. `release.yml` packs and publishes
+`Tesseract.Native.browser-wasm` alongside every other package; the only
+thing not yet exercised for real is an actual nuget.org publish via a real
+release tag (untestable without cutting one).
 
-- `browser-wasm` has no `dlopen`/`LoadLibrary`-style dynamic loader, so
-  the `runtimes/<rid>/native` restore-and-dlopen convention this repo's
-  other 5 RIDs rely on doesn't apply. A wasm build is statically linked at
-  the *consumer's* `dotnet publish` time instead
-  (`<NativeFileReference>`, injected automatically by installing the new
-  `Tesseract.Native.browser-wasm` package alongside `Tesseract.CrossPlatform`)
-  — a fundamentally different packaging shape from the other 5 RIDs, not
-  a 6th one of the same shape.
+- `browser-wasm` has no `dlopen`/`LoadLibrary`-style dynamic loader, so the
+  `runtimes/<rid>/native` restore-and-dlopen convention this repo's other 5
+  RIDs rely on doesn't apply. A wasm build is statically linked at the
+  *consumer's* `dotnet publish` time instead (`<NativeFileReference>`,
+  injected automatically by installing `Tesseract.Native.browser-wasm`
+  alongside `Tesseract.CrossPlatform`) — a fundamentally different
+  packaging shape from the other 5 RIDs, not a 6th one of the same shape.
 - **The interop layer needed no wasm-specific backend, confirmed by real
   spikes.** `LibraryLoader.cs`'s existing `[LibraryImport("tesseract"/
   "leptonica")]` targets resolve correctly against a statically-linked
   `.a` with zero wrapper code changes for wasm specifically — the one
-  wasm-specific fix needed was a small guard in `LibraryLoader.Resolve`
-  (landed) so it no-ops under `browser-wasm` instead of trying to
-  file-probe a filesystem that doesn't exist there. Separately, the
-  desktop-motivated `[DllImport]` → `[LibraryImport]` + `HandleRef` →
-  `SafeHandle` conversion (see "Modernize interop layer" above) turned
-  out to be load-bearing for wasm too: `[DllImport]`'s dynamic-trampoline
-  marshaling path is what was actually crashing `TesseractEngine`
-  construction under Mono's wasm interpreter, unrelated to codecs or
-  exceptions. The *same* `TesseractEngine`/`Page` C# API works unmodified
-  under wasm; this is not a JS-interop-shaped facade.
-- **A real Emscripten build of tesseract+leptonica is done and scripted**
+  wasm-specific fix needed was a small guard in `LibraryLoader.Resolve` so
+  it no-ops under `browser-wasm` instead of trying to file-probe a
+  filesystem that doesn't exist there. Separately, the desktop-motivated
+  `[DllImport]` → `[LibraryImport]` + `HandleRef` → `SafeHandle` conversion
+  (see "Modernize interop layer" above) turned out to be load-bearing for
+  wasm too: `[DllImport]`'s dynamic-trampoline marshaling path is what was
+  actually crashing `TesseractEngine` construction under Mono's wasm
+  interpreter, unrelated to codecs or exceptions. The *same*
+  `TesseractEngine`/`Page` C# API works unmodified under wasm; this is not
+  a JS-interop-shaped facade.
+- **A real Emscripten build of tesseract+leptonica**
   (`scripts/build-native-wasm.sh`) — vcpkg's own `tesseract` port excludes
   Emscripten, so this builds directly against upstream source/tags via
-  `emcmake`/`emmake`, using the .NET SDK's own bundled Emscripten
-  toolchain (no separate `emsdk` install). No image codec libraries are
-  linked in (bundling them was tried and found both to cost real,
-  measured size and to trigger a then-unexplained runtime hang;
+  `emcmake`/`emmake`, using the .NET SDK's own bundled Emscripten toolchain
+  (no separate `emsdk` install; see `versions.env`'s `EMSDK_REF`). No image
+  codec libraries are linked in (bundling them was tried and found both to
+  cost real, measured size and to trigger a then-unexplained runtime hang;
   `Tesseract.CrossPlatform.SkiaSharp` — install alongside
   `Tesseract.CrossPlatform` — is the decoder-agnostic answer instead:
   decode with SkiaSharp, whose own `SkiaSharp.NativeAssets.WebAssembly`
   native asset works under wasm, and hand the resulting pixels to `Pix`).
-- **Packaging is done and verified against a real consumer, not just
-  packed.** `Tesseract.Native.browser-wasm` (nuspec + `buildTransitive`
-  target under `nuget/wasm/`) was packed locally and installed into a
-  throwaway Blazor wasm app alongside a locally-packed
-  `Tesseract.CrossPlatform` — `dotnet publish -r browser-wasm` succeeded
+- **Packaging verified against a real consumer, not just packed.**
+  `Tesseract.Native.browser-wasm` (nuspec + `buildTransitive` target under
+  `nuget/wasm/`) installs into a throwaway Blazor wasm app alongside
+  `Tesseract.CrossPlatform` — `dotnet publish -r browser-wasm` succeeds
   with the real `tesseract.a`/`leptonica.a` linked in via the injected
   `<NativeFileReference>`, zero manual MSBuild authoring, and zero
-  `--allow-undefined` needed (every real P/Invoke symbol resolved
+  `--allow-undefined` needed (every real P/Invoke symbol resolves
   cleanly). Deliberately not part of the `Tesseract.Native` meta-package's
-  dependency group — a Blazor consumer adds
-  `Tesseract.Native.browser-wasm` explicitly.
-- What's left: a `build-native-wasm.yml` CI job (written, not yet run for
-  real in CI) and a real end-to-end OCR smoke test via headless
-  Playwright — matching this repo's "real OCR, not build-only" bar for
-  every other RID. No headless-browser CI infra exists in this repo yet;
-  likely the single highest-effort remaining piece.
+  dependency group — a Blazor consumer adds `Tesseract.Native.browser-wasm`
+  explicitly.
+- **CI wiring is real and green** (`.github/workflows/build-native-wasm.yml`,
+  wired into `ci.yml`/`release.yml` the same way as the other 5 RIDs): a
+  single `browser-wasm` job builds the native libs, runs a real-OCR smoke
+  test (`scripts/smoketest-wasm.sh`), and runs the actual
+  `Tesseract.Tests`/`Tesseract.Tests.SkiaSharp` suites
+  (`scripts/unittest-wasm.sh`) — all headlessly via Playwright driving real
+  Chromium, matching this repo's "real OCR, not build-only" bar for every
+  other RID. Image-codec-dependent tests skip cleanly under wasm (see
+  `RequiresImageCodecsAttribute` in `vendor/tesseract`) instead of failing,
+  since Leptonica ships with no codecs in this build (see above).
 
 ## Backlog: Android (`android-arm64`)
 
@@ -294,14 +303,17 @@ inherit that maintenance rather than re-deriving each fix ourselves.
   and `linux-arm64` likewise on `ubuntu-22.04-arm` — so build and smoke
   test run in the same job for every platform, no separate job needed just
   to *execute* what got cross-compiled elsewhere.
-- **`.github/workflows/release.yml`** runs on a `vX.Y.Z` tag push: calls
-  `build-native.yml`, downloads all five artifacts, packs the five runtime
-  `.nupkg`s plus the `Tesseract.Native` meta `.nupkg` (via
-  `nuget/runtime/RuntimePackage.csproj` + `Tesseract.Native.runtime.nuspec`,
-  reused for all five RIDs), builds `vendor/tesseract`'s wrapper assembly
-  and packs it as `Tesseract.CrossPlatform` (via
-  `nuget/wrapper/Tesseract.CrossPlatform.{csproj,nuspec}`), and pushes all
-  seven to nuget.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
+- **`.github/workflows/build-native-wasm.yml`** does the same for
+  `browser-wasm` — a single job (no matrix; Emscripten cross-compiles from
+  any host), running `scripts/build-native-wasm.sh` then a real headless
+  smoke test + the full unit test suite (see "Blazor WASM" above).
+- **`.github/workflows/pack.yml`** (reusable) is the one packing recipe
+  shared by both callers below, so they can't drift into two different
+  ways of building the same packages: it packs all 9 packages (5 runtime.*,
+  the `Tesseract.Native` meta-package, `Tesseract.Native.browser-wasm`, the
+  `Tesseract.CrossPlatform` wrapper, and `Tesseract.CrossPlatform.SkiaSharp`)
+  at a given version, and optionally pushes them to nuget.org via
+  [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
   (OIDC) — no long-lived API key stored in the repo. Each nuspec's `$token$`
   placeholders are filled in with `sed` into a temp file, then packed via
   `-p:NuspecFile=<path>` — not `-p:NuspecProperties="k1=v1;k2=v2"`, which
@@ -309,6 +321,14 @@ inherit that maintenance rather than re-deriving each fix ourselves.
   first token in practice (both MSBuild's `-p:` parsing and NuGet's own
   `NuspecProperties` parsing use `;` as their delimiter, and on the SDK
   version this runs against, the outer one wins).
+- **`.github/workflows/ci.yml`** runs on every PR/push: builds every
+  platform (native + wasm) and calls `pack.yml` with `publish: false` and a
+  `<PACKAGE_VERSION>-preview.<short-sha>` version, uploading the resulting
+  `.nupkg`s as a workflow artifact — lets you test a real pack of every
+  package without touching nuget.org (which is a pain to unlist from).
+- **`.github/workflows/release.yml`** runs on a `vX.Y.Z` tag push: calls
+  `build-native.yml` + `build-native-wasm.yml`, verifies the tag matches
+  `PACKAGE_VERSION`, then calls `pack.yml` with `publish: true`.
 
 ## One-time setup: Trusted Publishing
 
@@ -343,8 +363,13 @@ and single-use, requested right before each push.
 - Trusted Publishing is set up and packages are live on nuget.org.
   `v5.5.2` and `v5.5.2.1` were unlisted after real bugs (missing transitive
   native dependencies/wrong hardcoded DLL names, then a zero-dependency
-  meta-package respectively); `v5.5.2.2` is the current good release. See
-  `versions.env` for the versioning scheme.
+  meta-package respectively); `v5.5.2.2` is the current live release. See
+  `versions.env` for the versioning scheme. `PACKAGE_VERSION` is currently
+  `5.5.2.200` (packaging-major 2: the browser-wasm + SkiaSharp packaging
+  work above) but no `v5.5.2.200` tag has been cut yet, so
+  `Tesseract.Native.browser-wasm` and `Tesseract.CrossPlatform.SkiaSharp`
+  aren't on nuget.org yet — verified so far via `ci.yml`'s preview packing
+  and local installs into throwaway consumers only.
 - No `osx-x64` (Intel Mac): dropped deliberately — declining relevance plus
   GH's `macos-13` runner pool queuing for 15+ minutes before even starting a
   build. `win-arm64` was added in its place as the more useful target.
