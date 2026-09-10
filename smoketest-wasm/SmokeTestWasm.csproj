@@ -33,6 +33,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
+    <!-- Starts warning-clean (confirmed via a real build): consumes the real
+         packages via PackageReference, not vendor/tesseract source, so there's
+         no inherited-warning risk from that project's own build settings here. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
