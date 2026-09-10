@@ -13,9 +13,13 @@
       matching native binaries for whichever of
       win-x64/win-arm64/linux-x64/osx-arm64 you're building for.
 
-      API-compatible drop-in replacement for the stock Tesseract package --
-      same namespace and types. Install this INSTEAD OF Tesseract, not
-      alongside it.
+      Source-compatible replacement for the stock Tesseract package for
+      typical usage -- same namespace and types -- but requires
+      net8.0/net9.0/net10.0 (the stock package also supports
+      netstandard2.0/net47/net48), and two protected members
+      (PageIterator.handle, ResultRenderer.Handle) changed type from
+      HandleRef to this fork's own NativeHandle. Install this INSTEAD OF
+      Tesseract, not alongside it.
     </description>
     <license type="expression">Apache-2.0</license>
     <projectUrl>$repoUrl$</projectUrl>
