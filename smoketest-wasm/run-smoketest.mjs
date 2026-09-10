@@ -65,6 +65,7 @@ page.on('console', (msg) => {
 });
 page.on('pageerror', (err) => console.log('[pageerror]', err.message));
 
+let errorUiVisible = false;
 try {
   await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: 'load', timeout: 60000 });
   // No fixed sleep-and-hope: poll for the RESULT= line, which Program.cs
@@ -75,6 +76,21 @@ try {
   while (!resultLine && Date.now() < deadline) {
     await page.waitForTimeout(500);
   }
+
+  // A RESULT=PASS console line alone isn't the real bar: Blazor's own
+  // err:Tt wiring (blazor.webassembly.js) shows the "An unhandled error has
+  // occurred" #blazor-error-ui banner on *any* native stderr write at all,
+  // unconditionally, with no severity gating -- confirmed directly in a real
+  // build's shipped JS, not assumed. Leptonica/Tesseract's own routine
+  // diagnostic stderr output (this file's own console log already shows real
+  // examples: "Error in pixReadMemTiff", "Estimating resolution as N") would
+  // otherwise trigger that overlay on top of an app the OCR itself completed
+  // successfully -- a real, user-visible regression a console-text-only
+  // check would silently miss. Checked here, before the browser closes.
+  errorUiVisible = await page.evaluate(() => {
+    const el = document.querySelector('#blazor-error-ui');
+    return !!el && getComputedStyle(el).display !== 'none';
+  });
 } finally {
   await browser.close();
   server.close();
@@ -88,6 +104,11 @@ if (!resultLine) {
 console.log(resultLine);
 if (!resultLine.startsWith('RESULT=PASS')) {
   console.error('FAILURE: smoke test reported failure.');
+  process.exit(1);
+}
+
+if (errorUiVisible) {
+  console.error('FAILURE: #blazor-error-ui is visible -- some native stderr write triggered it during a run that otherwise completed successfully.');
   process.exit(1);
 }
 

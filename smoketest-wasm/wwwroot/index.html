@@ -5,6 +5,17 @@
     <meta charset="utf-8" />
     <title>SmokeTestWasm</title>
     <base href="/" />
+    <!--
+      #blazor-error-ui's own default display, without this: this app skips
+      the standard Blazor project template's app.css, whose #blazor-error-ui
+      { display: none; } rule is what actually hides the banner until
+      blazor.webassembly.js's own yt() sets display:block on a real error.
+      Without it, a <div> defaults to display:block regardless, so a naive
+      getComputedStyle check for "is this visible" would always say yes --
+      a real false positive found and fixed while verifying the stderr
+      suppression fix (see LeptonicaApi.cs/TesseractEngine.cs), not assumed.
+    -->
+    <style>#blazor-error-ui { display: none; }</style>
 </head>
 
 <body>
