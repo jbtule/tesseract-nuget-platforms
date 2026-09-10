@@ -20,8 +20,11 @@ jobs:
   build-native:
     uses: ./.github/workflows/build-native.yml
 
+  build-native-wasm:
+    uses: ./.github/workflows/build-native-wasm.yml
+
   pack-and-publish:
-    needs: build-native
+    needs: [build-native, build-native-wasm]
     runs-on: ubuntu-latest
     permissions:
       id-token: write # required to request the OIDC token for Trusted Publishing
@@ -118,6 +121,41 @@ jobs:
             dotnet pack nuget/runtime/RuntimePackage.csproj -c Release -o out \
               -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
           done
+
+      # Separate from "Pack runtime packages" above: browser-wasm ships
+      # under build/native (buildTransitive-injected via
+      # <NativeFileReference>, see nuget/wasm/Tesseract.Native.browser-wasm.targets),
+      # not runtimes/<rid>/native (NuGet's own dynamic-asset restore
+      # convention, meaningless here -- there's no dlopen-style loader under
+      # wasm) -- a genuinely different package shape, not just a 6th RID of
+      # the same shape.
+      - name: Pack browser-wasm native package
+        run: |
+          set -euo pipefail
+          repo_url="https://github.com/${{ github.repository }}"
+          mkdir -p /tmp/nuspecs
+
+          gen_file_entries() {
+            local dir="$1" target="$2" f
+            for f in "$dir"/*; do
+              [ -f "$f" ] || continue
+              printf '    <file src="%s" target="%s" />\n' "$f" "$target"
+            done
+          }
+
+          nuspec=/tmp/nuspecs/Tesseract.Native.browser-wasm.nuspec
+          gen_file_entries "$GITHUB_WORKSPACE/stage/browser-wasm/native" "build/native" > /tmp/nuspecs/native-files.xml
+          gen_file_entries "$GITHUB_WORKSPACE/stage/browser-wasm/licenses" "licenses" > /tmp/nuspecs/license-files.xml
+          sed \
+            -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
+            -e "s|[$]repoUrl[$]|$repo_url|g" \
+            -e "/NATIVE_FILES_PLACEHOLDER/r /tmp/nuspecs/native-files.xml" \
+            -e "/NATIVE_FILES_PLACEHOLDER/d" \
+            -e "/LICENSE_FILES_PLACEHOLDER/r /tmp/nuspecs/license-files.xml" \
+            -e "/LICENSE_FILES_PLACEHOLDER/d" \
+            nuget/wasm/Tesseract.Native.browser-wasm.nuspec > "$nuspec"
+          dotnet pack nuget/wasm/WasmNativePackage.csproj -c Release -o out \
+            -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
 
       - name: Pack meta package
         run: |

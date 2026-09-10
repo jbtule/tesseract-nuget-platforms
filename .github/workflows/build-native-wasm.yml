@@ -1,0 +1,50 @@
+name: Build native libraries (browser-wasm)
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/build-native-wasm.sh"
+      - "versions.env"
+      - "nuget/wasm/**"
+      - ".github/workflows/build-native-wasm.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build-native-wasm.sh"
+      - "versions.env"
+      - "nuget/wasm/**"
+      - ".github/workflows/build-native-wasm.yml"
+
+jobs:
+  # Single job, no matrix: unlike win/linux/mac x64/ARM64, an Emscripten
+  # build isn't host-architecture-dependent -- it cross-compiles to wasm32
+  # from any host the wasm-tools workload supports.
+  browser-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      # Brings in the Microsoft.NET.Runtime.Emscripten.<EMSDK_REF>.* packs
+      # scripts/build-native-wasm.sh builds against -- no separate emsdk
+      # install needed.
+      - run: dotnet workload install wasm-tools
+      # Ubuntu's system cmake has been too old for some port/toolchain CMake
+      # scripts before (see build-native.yml's linux-arm64 job for the same
+      # issue with a different symptom) -- installed explicitly here too
+      # rather than relying on whatever apt has.
+      - uses: lukka/get-cmake@latest
+      - name: Install ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - run: bash scripts/build-native-wasm.sh
+      # Uploaded even though there's no smoke test to run yet (Phase 4 of
+      # the WASM backlog plan) -- release.yml needs this artifact to pack
+      # Tesseract.Native.browser-wasm regardless.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-browser-wasm
+          path: stage/browser-wasm
+          if-no-files-found: error

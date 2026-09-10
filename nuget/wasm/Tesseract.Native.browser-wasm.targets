@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Injects the static tesseract.a/leptonica.a as NativeFileReferences: the
+    browser-wasm equivalent of Tesseract.Native's runtimes/<rid>/native
+    restore convention, which has no meaning here (there's no dlopen-style
+    loader under wasm; native code has to be statically linked in at publish
+    time instead). A no-op for every other RID, so referencing this package
+    is harmless for a multi-RID-targeting project that only sometimes
+    publishes for browser-wasm.
+  -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'browser-wasm'">
+    <NativeFileReference Include="$(MSBuildThisFileDirectory)../build/native/tesseract.a" />
+    <NativeFileReference Include="$(MSBuildThisFileDirectory)../build/native/leptonica.a" />
+  </ItemGroup>
+</Project>

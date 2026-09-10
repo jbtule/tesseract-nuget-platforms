@@ -165,38 +165,59 @@ entirely internal to the wrapper's interop plumbing.
 
 ## Backlog: Blazor WASM (`browser-wasm`)
 
-Started 2026-09-07 (interop-layer mechanism spike done; native build,
-packaging, and CI still to do), out of scope for this repo's current
-packaging model otherwise. Notes for whoever picks this up next:
+Started 2026-09-07, in progress — native build, interop, and packaging
+are done and verified; CI wiring for the wasm build and an end-to-end
+smoke test are what's left. Notes for whoever picks this up next:
 
 - `browser-wasm` has no `dlopen`/`LoadLibrary`-style dynamic loader, so
   the `runtimes/<rid>/native` restore-and-dlopen convention this repo's
-  other 5 RIDs rely on doesn't apply. A wasm build needs to be statically
-  linked at the *consumer's* `dotnet publish` time (`<NativeFileReference>`),
-  a fundamentally different packaging shape — not a 6th RID for
-  `Tesseract.Native`.
-- **Confirmed by a real spike, not assumed**: this needs no new interop
-  backend. `LibraryLoader.cs`'s existing `[DllImport("tesseract"/
+  other 5 RIDs rely on doesn't apply. A wasm build is statically linked at
+  the *consumer's* `dotnet publish` time instead
+  (`<NativeFileReference>`, injected automatically by installing the new
+  `Tesseract.Native.browser-wasm` package alongside `Tesseract.CrossPlatform`)
+  — a fundamentally different packaging shape from the other 5 RIDs, not
+  a 6th one of the same shape.
+- **The interop layer needed no wasm-specific backend, confirmed by real
+  spikes.** `LibraryLoader.cs`'s existing `[LibraryImport("tesseract"/
   "leptonica")]` targets resolve correctly against a statically-linked
-  `.a` with zero wrapper code changes — the one real fix needed was a
-  small guard in `LibraryLoader.Resolve` (already landed) so it no-ops
-  under `browser-wasm` instead of trying to file-probe a filesystem that
-  doesn't exist there. The *same* `TesseractEngine`/`Page` C# API already
-  works unmodified; this is not a JS-interop-shaped facade.
-- What's left: a real Emscripten build of tesseract+leptonica (vcpkg's
-  own `tesseract` port excludes Emscripten, so this needs a from-scratch
-  `emcmake`/`emmake` build against upstream source — real prior art
-  exists: [tesseract-wasm](https://github.com/robertknight/tesseract-wasm) /
-  [tesseract.js](https://github.com/naptha/tesseract.js)), a new
-  `Tesseract.Native.browser-wasm` package (`buildTransitive`-injected
-  `<NativeFileReference>`, not a `runtimes/<rid>/native` dependency), and
-  CI wiring with a real end-to-end OCR smoke test — matching this repo's
-  "real OCR, not build-only" bar for every other RID. Multi-day effort on
-  its own, separate from win/linux/mac native packaging here.
-- Until then, the pragmatic answer for a `net10.0-browser` app needing OCR
-  is what's already in place elsewhere: call `tesseract.js` via JS interop,
-  optionally hidden behind a small internal C# facade shaped like
-  `TesseractEngine` so callers don't see the JS interop plumbing.
+  `.a` with zero wrapper code changes for wasm specifically — the one
+  wasm-specific fix needed was a small guard in `LibraryLoader.Resolve`
+  (landed) so it no-ops under `browser-wasm` instead of trying to
+  file-probe a filesystem that doesn't exist there. Separately, the
+  desktop-motivated `[DllImport]` → `[LibraryImport]` + `HandleRef` →
+  `SafeHandle` conversion (see "Modernize interop layer" above) turned
+  out to be load-bearing for wasm too: `[DllImport]`'s dynamic-trampoline
+  marshaling path is what was actually crashing `TesseractEngine`
+  construction under Mono's wasm interpreter, unrelated to codecs or
+  exceptions. The *same* `TesseractEngine`/`Page` C# API works unmodified
+  under wasm; this is not a JS-interop-shaped facade.
+- **A real Emscripten build of tesseract+leptonica is done and scripted**
+  (`scripts/build-native-wasm.sh`) — vcpkg's own `tesseract` port excludes
+  Emscripten, so this builds directly against upstream source/tags via
+  `emcmake`/`emmake`, using the .NET SDK's own bundled Emscripten
+  toolchain (no separate `emsdk` install). No image codec libraries are
+  linked in (bundling them was tried and found both to cost real,
+  measured size and to trigger a then-unexplained runtime hang;
+  `Tesseract.CrossPlatform.SkiaSharp` — install alongside
+  `Tesseract.CrossPlatform` — is the decoder-agnostic answer instead:
+  decode with SkiaSharp, whose own `SkiaSharp.NativeAssets.WebAssembly`
+  native asset works under wasm, and hand the resulting pixels to `Pix`).
+- **Packaging is done and verified against a real consumer, not just
+  packed.** `Tesseract.Native.browser-wasm` (nuspec + `buildTransitive`
+  target under `nuget/wasm/`) was packed locally and installed into a
+  throwaway Blazor wasm app alongside a locally-packed
+  `Tesseract.CrossPlatform` — `dotnet publish -r browser-wasm` succeeded
+  with the real `tesseract.a`/`leptonica.a` linked in via the injected
+  `<NativeFileReference>`, zero manual MSBuild authoring, and zero
+  `--allow-undefined` needed (every real P/Invoke symbol resolved
+  cleanly). Deliberately not part of the `Tesseract.Native` meta-package's
+  dependency group — a Blazor consumer adds
+  `Tesseract.Native.browser-wasm` explicitly.
+- What's left: a `build-native-wasm.yml` CI job (written, not yet run for
+  real in CI) and a real end-to-end OCR smoke test via headless
+  Playwright — matching this repo's "real OCR, not build-only" bar for
+  every other RID. No headless-browser CI infra exists in this repo yet;
+  likely the single highest-effort remaining piece.
 
 ## Backlog: Android (`android-arm64`)
 

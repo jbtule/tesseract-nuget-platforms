@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>Tesseract.Native.browser-wasm</id>
+    <version>$version$</version>
+    <authors>jay@tuley.name</authors>
+    <description>
+      Static Tesseract OCR + Leptonica libraries for browser-wasm, built from
+      upstream source via Emscripten (scripts/build-native-wasm.sh) -- vcpkg's
+      tesseract port excludes Emscripten, so this RID can't be built the same
+      way as Tesseract.Native's other runtime.&lt;rid&gt; packages. There is no
+      dlopen-style loader under browser-wasm: this package's buildTransitive
+      target injects these .a files into your own `dotnet publish -r
+      browser-wasm` via &lt;NativeFileReference&gt; instead, so `dotnet add
+      package Tesseract.CrossPlatform` + `dotnet add package
+      Tesseract.Native.browser-wasm` + `dotnet publish -r browser-wasm` is all
+      that's needed. Deliberately not part of the Tesseract.Native
+      meta-package's dependency group -- its runtimes/&lt;rid&gt;/native
+      restore convention and this package's buildTransitive convention are
+      different NuGet mechanisms, and every consumer restoring
+      Emscripten-only content regardless of RID would be pure waste. No image
+      codec libraries are linked in (see Tesseract.CrossPlatform.SkiaSharp
+      for a decoder-agnostic way to feed it already-decoded pixels instead).
+    </description>
+    <license type="expression">Apache-2.0</license>
+    <projectUrl>$repoUrl$</projectUrl>
+    <repository type="git" url="$repoUrl$" />
+    <tags>tesseract leptonica ocr native browser-wasm blazor wasm</tags>
+    <readme>README.md</readme>
+  </metadata>
+  <files>
+    <!-- No globs: see nuget/runtime/Tesseract.Native.runtime.nuspec's
+         equivalent comment for why. An explicit, non-wildcard <file> entry
+         per actual file is generated and inserted here instead, avoiding
+         NuGet's cross-platform glob-to-target-path unreliability entirely. -->
+    <!-- NATIVE_FILES_PLACEHOLDER -->
+    <!-- LICENSE_FILES_PLACEHOLDER -->
+    <file src="nuget/wasm/Tesseract.Native.browser-wasm.targets" target="buildTransitive/Tesseract.Native.browser-wasm.targets" />
+    <file src="nuget/wasm/README.md" target="README.md" />
+  </files>
+</package>

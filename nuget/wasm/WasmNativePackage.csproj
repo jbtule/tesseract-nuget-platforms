@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Packs Tesseract.Native.browser-wasm. Just this one project/nuspec pair
+    (unlike nuget/runtime's RuntimePackage.csproj, which serves all 5 desktop
+    RIDs via -p:NuspecProperties) since there's only one wasm RID to ship.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <NoWarn>$(NoWarn);NU5128;CS8017</NoWarn>
+    <NuspecFile>Tesseract.Native.browser-wasm.nuspec</NuspecFile>
+    <NuspecBasePath>$(MSBuildProjectDirectory)</NuspecBasePath>
+  </PropertyGroup>
+
+</Project>
