@@ -45,3 +45,10 @@ jobs:
       # for every other RID (see scripts/smoketest.sh's own rationale).
       - name: Smoke test (real OCR via the packaged output, headless Chromium)
         run: bash scripts/smoketest-wasm.sh
+      # The real Tesseract.Tests suite (+ Tesseract.Tests.SkiaSharp) under wasm,
+      # not just one OCR call -- matches the other 5 RIDs' own "Unit tests" step
+      # in build-native.yml. Reuses this job's already-built stage/browser-wasm
+      # native libs and already-installed Node setup, so this is one more
+      # publish+run rather than a second full native build.
+      - name: Unit tests (real Tesseract.Tests suite, headless Chromium)
+        run: bash scripts/unittest-wasm.sh
