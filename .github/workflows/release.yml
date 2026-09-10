@@ -48,8 +48,12 @@ jobs:
   pack-and-publish:
     needs: [build-native, build-native-wasm, verify-tag]
     uses: ./.github/workflows/pack.yml
+    # Both needed: pack.yml's own job requests contents: read (for its
+    # checkout step) and id-token: write (Trusted Publishing) -- a reusable
+    # workflow's job can't get a permission its caller doesn't also grant.
     permissions:
-      id-token: write # required to request the OIDC token for Trusted Publishing
+      contents: read
+      id-token: write
     with:
       version: ${{ needs.verify-tag.outputs.version }}
       publish: true

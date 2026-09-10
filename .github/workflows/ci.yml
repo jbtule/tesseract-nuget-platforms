@@ -65,6 +65,15 @@ jobs:
   pack-preview:
     needs: [build-native, build-native-wasm, compute-preview-version]
     uses: ./.github/workflows/pack.yml
+    # A reusable workflow's job can't request a permission its caller doesn't
+    # also grant -- pack.yml's own job needs both of these (contents: read for
+    # its checkout step, id-token: write for Trusted Publishing, unused here
+    # since publish: false but still requested). Omitting this entirely is
+    # what caused the very first run of this workflow to fail outright at
+    # startup (0 jobs scheduled, "workflow file issue"), before any job began.
+    permissions:
+      contents: read
+      id-token: write
     with:
       version: ${{ needs.compute-preview-version.outputs.version }}
       publish: false

@@ -29,7 +29,11 @@ on:
 jobs:
   pack:
     runs-on: ubuntu-latest
+    # Specifying `permissions:` at all resets every unlisted permission to
+    # none -- contents: read is needed here too (for actions/checkout), not
+    # just id-token: write, or the checkout step itself fails.
     permissions:
+      contents: read
       id-token: write # required to request the OIDC token for Trusted Publishing, only used when publish: true
     steps:
       - uses: actions/checkout@v4
