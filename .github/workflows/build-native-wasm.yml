@@ -14,10 +14,10 @@ jobs:
   browser-wasm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true # vendor/tesseract, needed to build the wrapper + Tesseract.CrossPlatform.SkiaSharp
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
       # Brings in the Microsoft.NET.Runtime.Emscripten.<EMSDK_REF>.* packs
@@ -32,12 +32,12 @@ jobs:
       - name: Install ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
       - run: bash scripts/build-native-wasm.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-browser-wasm
           path: stage/browser-wasm
           if-no-files-found: error
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       # Real OCR against smoketest-wasm/, headlessly via Playwright -- not a

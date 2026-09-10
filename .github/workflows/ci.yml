@@ -48,7 +48,7 @@ jobs:
     outputs:
       version: ${{ steps.compute.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: compute
         # PACKAGE_VERSION-preview.<short-sha>: a dot-separated prerelease
         # identifier, not a "+build" metadata suffix -- NuGet/SemVer2 do

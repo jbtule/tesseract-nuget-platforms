@@ -13,10 +13,10 @@ jobs:
   linux-x64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true # vendor/tesseract, needed to build+smoke-test the wrapper
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
           # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
@@ -32,7 +32,7 @@ jobs:
       # shouldn't block being able to pull and inspect the native build
       # that actually succeeded -- this is what let us debug the Windows
       # DLL issues instead of only having log text to go on.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-linux-x64
           path: stage/linux-x64
@@ -49,7 +49,7 @@ jobs:
       # unrelated engine-init crashes instead of the real signal).
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-runs-linux-x64
           path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
@@ -60,10 +60,10 @@ jobs:
   linux-arm64:
     runs-on: ubuntu-22.04-arm # real ARM64 hardware -- no cross-compile needed, unlike win-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
           # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
@@ -82,7 +82,7 @@ jobs:
       # fallback.
       - uses: lukka/get-cmake@latest
       - run: bash scripts/build-native.sh linux-arm64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-linux-arm64
           path: stage/linux-arm64
@@ -93,7 +93,7 @@ jobs:
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-runs-linux-arm64
           path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
@@ -104,10 +104,10 @@ jobs:
   osx-arm64:
     runs-on: macos-14 # Apple Silicon image
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
           # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
@@ -118,7 +118,7 @@ jobs:
             10.0.x
       - run: brew install ninja autoconf-archive
       - run: bash scripts/build-native.sh osx-arm64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-osx-arm64
           path: stage/osx-arm64
@@ -129,7 +129,7 @@ jobs:
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-runs-osx-arm64
           path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
@@ -140,10 +140,10 @@ jobs:
   win-x64:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
           # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
@@ -153,7 +153,7 @@ jobs:
             8.0.x
             10.0.x
       - run: pwsh scripts/build-native.ps1 win-x64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-win-x64
           path: stage/win-x64
@@ -165,7 +165,7 @@ jobs:
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-runs-win-x64
           path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
@@ -184,10 +184,10 @@ jobs:
   win-arm64:
     runs-on: windows-11-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           # 10.0.x too, alongside smoketest.sh's own net8.0 requirement:
           # Tesseract.Tests multi-targets net8/9/10, and running its net10.0
@@ -197,7 +197,7 @@ jobs:
             8.0.x
             10.0.x
       - run: pwsh scripts/build-native.ps1 win-arm64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-win-arm64
           path: stage/win-arm64
@@ -209,7 +209,7 @@ jobs:
           dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-runs-win-arm64
           path: vendor/tesseract/src/Tesseract.Tests/bin/Release/net10.0/Runs
