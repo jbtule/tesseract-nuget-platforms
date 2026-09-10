@@ -27,6 +27,17 @@ try
     Directory.CreateDirectory("/tessdata");
     await File.WriteAllBytesAsync("/tessdata/eng.traineddata", traineddata);
 
+    // Engine constructed before any Pix/SkiaPixConverter/LeptonicaApi use,
+    // deliberately: the natural "build the engine once in init, convert
+    // pixels later per scan" pattern most real consumers write (also how
+    // the desktop CLI itself is structured), and the one order that
+    // actually exercises LeptonicaApi.SuppressConsoleOutputUnderWasm's own
+    // "whichever class gets touched first" fix -- a real, previously-missed
+    // bug, since this file used to construct Pix first, which accidentally
+    // never exercised it. Reordering this is the whole reason that bug was
+    // findable here at all instead of only in a real consumer's own code.
+    using var engine = new TesseractEngine("/tessdata", "eng", EngineMode.Default);
+
     // The real image-codec gap this whole package exists to cover: the
     // browser-wasm native build has no libjpeg/libpng/libtiff/giflib linked
     // in (see the WASM backlog plan's codec-drop decision), so
@@ -38,7 +49,6 @@ try
     using var bitmap = SKBitmap.Decode(pngBytes);
     using var pix = SkiaPixConverter.ToPix(bitmap);
 
-    using var engine = new TesseractEngine("/tessdata", "eng", EngineMode.Default);
     using var page = engine.Process(pix);
     var text = page.GetText().Trim();
     Console.WriteLine($"OCR result: \"{text}\"");
