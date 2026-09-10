@@ -174,11 +174,23 @@ jobs:
           dotnet pack nuget/wrapper/Tesseract.CrossPlatform.csproj -c Release -o out \
             -p:NuspecFile="$nuspec" -p:NuspecBasePath="$GITHUB_WORKSPACE"
 
+      # Explicit `build` then `pack --no-build`, not a plain `dotnet pack`: a
+      # real CI failure (NU5026, "...Tesseract.CrossPlatform.SkiaSharp.dll...
+      # was not found on disk", net10.0 specifically), reproduced locally too
+      # -- `dotnet pack` alone, run right after the "Build patched wrapper"
+      # step's separate build of the same (ProjectReference'd) Tesseract.csproj,
+      # incorrectly treats this project as already up to date and skips
+      # building it, then fails packing the (never-produced) output. A plain
+      # `dotnet build` of this same project in isolation never hits this --
+      # only `pack`'s own incremental/up-to-date check does. Forcing a real
+      # build first sidesteps whatever that check is getting wrong.
       - name: Pack Tesseract.CrossPlatform.SkiaSharp
         run: |
           set -euo pipefail
+          dotnet build vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/Tesseract.CrossPlatform.SkiaSharp.csproj \
+            -c Release -p:Version="$PACKAGE_VERSION"
           dotnet pack vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/Tesseract.CrossPlatform.SkiaSharp.csproj \
-            -c Release -o out -p:Version="$PACKAGE_VERSION"
+            -c Release -o out -p:Version="$PACKAGE_VERSION" --no-build
 
       - uses: actions/upload-artifact@v4
         with:

@@ -61,12 +61,17 @@ dotnet pack "$ROOT/nuget/wrapper/Tesseract.CrossPlatform.csproj" -c Release -o "
   -p:NuspecFile="$WORK/wrapper.nuspec" -p:NuspecBasePath="$ROOT"
 
 echo "== Packing Tesseract.CrossPlatform.SkiaSharp =="
-# Its own csproj carries a fixed <Version> independent of PACKAGE_VERSION
-# (it isn't part of the release.yml pipeline yet -- see the WASM backlog
-# plan) -- override it here so this smoke test exercises one consistent
-# version across all three packages instead of a mismatched pair.
+# Explicit `build` then `pack --no-build`, not a plain `dotnet pack`: a real
+# CI failure (NU5026, output dll not found on disk for net10.0 specifically),
+# reproduced locally too -- `dotnet pack` run right after this script's own
+# separate build of the ProjectReference'd Tesseract.csproj (the "Building +
+# packing wrapper" step above) incorrectly treats this project as already up
+# to date and skips building it. See pack.yml's matching step for the fuller
+# writeup.
+dotnet build "$ROOT/vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/Tesseract.CrossPlatform.SkiaSharp.csproj" \
+  -c Release -p:Version="$PACKAGE_VERSION"
 dotnet pack "$ROOT/vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/Tesseract.CrossPlatform.SkiaSharp.csproj" \
-  -c Release -o "$FEED" -p:Version="$PACKAGE_VERSION"
+  -c Release -o "$FEED" -p:Version="$PACKAGE_VERSION" --no-build
 
 echo "== Packing stub Tesseract.Native (satisfies Tesseract.CrossPlatform's normal dependency) =="
 sed -e "s|[$]version[$]|$PACKAGE_VERSION|g" \
