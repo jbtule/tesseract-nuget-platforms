@@ -336,13 +336,22 @@ Before the first release can actually publish:
 
 1. On nuget.org: account menu → **Trusted Publishing** → add a policy with
    Repository Owner `jbtule`, Repository `tesseract-nuget-platforms`,
-   Workflow File `release.yml` (file name only, no path), Environment left
-   blank.
+   Workflow File `pack.yml` (file name only, no path), Environment left
+   blank. **Not `release.yml`** — nuget.org's token exchange validates
+   against the workflow file that actually contains the job requesting the
+   OIDC token, which is the reusable `pack.yml` (its `NuGet/login`/push
+   steps), regardless of which top-level workflow (`release.yml` or
+   `ci.yml`) called it. Confirmed the hard way: a policy configured for
+   `release.yml` fails every real publish with `Token exchange failed
+   (HTTP 401) ... Workflow mismatch: expected 'release.yml', actual
+   'pack.yml'` — caught before any package was actually pushed, but only
+   because the failure happens at token exchange, before `dotnet nuget
+   push` runs.
 2. Add a `NUGET_USER` repo secret holding your nuget.org username (profile
    name, *not* email) — not sensitive enough to strictly require a secret,
    but keeps it out of workflow logs.
 
-No API key to create, store, or rotate — `release.yml` exchanges a
+No API key to create, store, or rotate — `pack.yml` exchanges a
 GitHub-issued OIDC token for a nuget.org API key that's valid for one hour
 and single-use, requested right before each push.
 
