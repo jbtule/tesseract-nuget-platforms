@@ -1,0 +1,9 @@
+{
+  "name": "unittest-wasm-runner",
+  "private": true,
+  "description": "Headless-Chromium runner for the browser-wasm unit test run (scripts/unittest-wasm.sh). Not the test app itself -- that's the .NET/Blazor project in this same directory.",
+  "type": "module",
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

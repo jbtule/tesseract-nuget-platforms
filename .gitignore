@@ -9,3 +9,10 @@ smoketest-wasm/nuget.config
 smoketest-wasm/wwwroot/tessdata/
 smoketest-wasm/wwwroot/test.png
 smoketest-wasm/node_modules/
+unittest-wasm/nuget.config
+unittest-wasm/wwwroot/Data/
+unittest-wasm/wwwroot/Results/
+unittest-wasm/wwwroot/tessdata/
+unittest-wasm/wwwroot/manifest.txt
+unittest-wasm/wwwroot/versions.env
+unittest-wasm/node_modules/

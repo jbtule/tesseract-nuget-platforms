@@ -1,0 +1,98 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <!--
+    Runs the real Tesseract.Tests suite (and Tesseract.Tests.SkiaSharp's converter tests)
+    under browser-wasm, for real, in a real browser: not a theoretical "it should work"
+    claim. NUnit's normal Run()/EventPump path unconditionally spins up a background thread
+    even with NumberOfTestWorkers=0/RunOnMainThread=true set (confirmed empirically), fatal
+    under Mono's single-threaded wasm runtime (Thread.Start() is a silent no-op there, so the
+    later Thread.Join() throws ThreadStateException). Program.cs bypasses that by driving
+    NUnit's own real internal execution engine directly (WorkItemBuilder/
+    WorkItem.RunOnCurrentThread(), via reflection since both are internal) instead of a
+    hand-rolled test invoker: OneTimeSetUp/[SetUpFixture]/child dispatch/OneTimeTearDown all
+    still run exactly like a normal NUnit run, just single-threaded.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <WasmNativeStrip>false</WasmNativeStrip>
+    <WasmAllowUndefinedSymbols>true</WasmAllowUndefinedSymbols>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Tesseract.CrossPlatform's InternalsVisibleTo grant names "Tesseract.Tests" exactly
+         (see vendor/tesseract's Properties/AssemblyInfo.cs); match it so TessApi/Pix.Handle
+         etc. are accessible from the real test source compiled in below. -->
+    <AssemblyName>Tesseract.Tests</AssemblyName>
+    <RootNamespace>UnitTestWasm</RootNamespace>
+    <!-- Dev/CI test-running tool, not a shipped consumer package, so trimming isn't a
+         concern here, and it actively breaks the reflection-based access to NUnit's
+         internal execution API Program.cs depends on (confirmed: the Dispatcher property
+         silently vanished from reflection with trimming on, presumably as unreachable
+         since nothing else in the reachable graph statically references it). -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <WasmStripILAfterAOT>false</WasmStripILAfterAOT>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="Tesseract.CrossPlatform" Version="$(PackageVersion)" />
+    <PackageReference Include="nunit" Version="4.6.1" />
+    <PackageReference Include="NUnitLite" Version="4.6.1" />
+    <PackageReference Include="SkiaSharp" Version="4.152.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.WebAssembly" Version="4.152.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeFileReference Include="../stage/browser-wasm/native/tesseract.a" />
+    <NativeFileReference Include="../stage/browser-wasm/native/leptonica.a" />
+  </ItemGroup>
+
+  <!--
+    The real Tesseract.Tests source, compiled directly into this project rather than
+    ProjectReference'd: ProjectReference to a net8/9/10-multi-targeted project from a
+    browser-wasm host trips NETSDK1147 ("workload wasm-tools-net8 missing") at restore
+    time regardless of SetTargetFramework, confirmed the hard way. Since this project
+    references the real packaged Tesseract.CrossPlatform (built with
+    -p:AssemblyName=Tesseract.CrossPlatform, see scripts/unittest-wasm.sh) instead, both
+    this test source and the SkiaSharp source below resolve Pix/etc. from that one same
+    assembly identity: no assembly-identity mismatch risk here the way there was for
+    Tesseract.CrossPlatform.SkiaSharp's own ProjectReference (see that project's own
+    comment): everything here is either compiled into this one assembly directly, or
+    referenced via the one same PackageReference.
+
+    ConvertBitmapToPixTests.cs/ColorTests.cs are deliberately excluded: both depend on
+    System.Drawing.Common, which has no browser-wasm native asset at all, out of scope
+    here the same way they're already [Platform("Win")]-skipped on desktop non-Windows.
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.Tests/**/*.cs"
+             Exclude="
+               $(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.Tests/**/obj/**/*.cs;
+               $(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.Tests/**/bin/**/*.cs;
+               $(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.Tests/Leptonica/ConvertBitmapToPixTests.cs;
+               $(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.Tests/Leptonica/ColorTests.cs"
+             Link="TesseractTests/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    Tesseract.CrossPlatform.SkiaSharp's real converter source, plus its real test coverage
+    (Tesseract.Tests.SkiaSharp): proves the image-codec gap RequiresImageCodecs skips on the
+    main suite above is actually bridged, not just theorized. GlobalTestSetup.cs is excluded:
+    this project already sets LibraryLoader.CustomSearchPath itself (see
+    scripts/unittest-wasm.sh), no need for Tesseract.Tests.SkiaSharp's own duplicate of that.
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/**/*.cs"
+             Exclude="
+               $(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/**/obj/**/*.cs;
+               $(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.CrossPlatform.SkiaSharp/**/bin/**/*.cs"
+             Link="TesseractSkiaSharp/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)../vendor/tesseract/src/Tesseract.Tests.SkiaSharp/ConvertSkiaBitmapToPixTests.cs"
+             Link="TesseractTestsSkiaSharp/ConvertSkiaBitmapToPixTests.cs" />
+  </ItemGroup>
+
+</Project>
