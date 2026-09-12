@@ -5,7 +5,7 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDependencyFile>false</GenerateDependencyFile>
     <!--
-      NU5100: "assembly not inside the 'lib' folder" -- deliberate, not a
+      NU5100: "assembly not inside the 'lib' folder" - deliberate, not a
       mistake. This project only exists to produce a real, restorable-but-
       empty Tesseract.Native stub package (via its own Tesseract.Native.nuspec)
       so smoketest/unittest-wasm's throwaway consumer projects can satisfy
