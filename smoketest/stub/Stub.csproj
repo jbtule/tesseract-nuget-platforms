@@ -4,7 +4,16 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDependencyFile>false</GenerateDependencyFile>
-    <NoWarn>$(NoWarn);NU5128;NU5125;CS8017</NoWarn>
+    <!--
+      NU5100: "assembly not inside the 'lib' folder" -- deliberate, not a
+      mistake. This project only exists to produce a real, restorable-but-
+      empty Tesseract.Native stub package (via its own Tesseract.Native.nuspec)
+      so smoketest/unittest-wasm's throwaway consumer projects can satisfy
+      Tesseract.CrossPlatform's dependency on Tesseract.Native without
+      pulling in real native binaries. IncludeBuildOutput=false above means
+      the built Stub.dll is never meant to be packed as a reference at all.
+    -->
+    <NoWarn>$(NoWarn);NU5128;NU5125;NU5100;CS8017</NoWarn>
     <NuspecFile>Tesseract.Native.nuspec</NuspecFile>
     <NuspecBasePath>$(MSBuildProjectDirectory)</NuspecBasePath>
   </PropertyGroup>
