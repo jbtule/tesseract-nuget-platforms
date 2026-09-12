@@ -220,11 +220,12 @@ release tag (untestable without cutting one).
 - **CI wiring is real and green** (`.github/workflows/build-native-wasm.yml`,
   wired into `ci.yml`/`release.yml` the same way as the other 5 RIDs): a
   single `browser-wasm` job builds the native libs, runs a real-OCR smoke
-  test (`scripts/smoketest-wasm.sh`), and runs the actual
-  `Tesseract.Tests`/`Tesseract.Tests.SkiaSharp` suites
-  (`scripts/unittest-wasm.sh`) — all headlessly via Playwright driving real
-  Chromium, matching this repo's "real OCR, not build-only" bar for every
-  other RID. Image-codec-dependent tests skip cleanly under wasm (see
+  test (`scripts/smoketest-wasm.sh`, headlessly via Playwright driving real
+  Chromium), and runs the actual `Tesseract.Tests`/`Tesseract.Tests.SkiaSharp`
+  suites (`unittest-wasm-anyunit`, via AnyUnit.Runner.Bootstrap - no headless
+  browser needed there, `dotnet.js` boots directly under plain `node`),
+  matching this repo's "real OCR, not build-only" bar for every other RID.
+  Image-codec-dependent tests skip cleanly under wasm (see
   `RequiresImageCodecsAttribute` in `vendor/tesseract`) instead of failing,
   since Leptonica ships with no codecs in this build (see above).
 
