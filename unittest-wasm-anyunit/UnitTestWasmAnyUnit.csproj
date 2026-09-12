@@ -57,9 +57,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\AnyUnit\AnyUnit\AnyUnit.csproj" />
-    <ProjectReference Include="..\..\AnyUnit\Contrib\AnyUnit.Style.Nunit\AnyUnit.Style.Nunit.csproj" />
-    <ProjectReference Include="..\..\AnyUnit\Runner\Bootstrap\AnyUnit.Runner.Bootstrap.csproj" />
+    <!-- Real 1.0.0 release from nuget.org now, not a local checkout. -->
+    <PackageReference Include="AnyUnit" Version="1.0.0" />
+    <PackageReference Include="AnyUnit.Style.Nunit" Version="1.0.0" />
+    <PackageReference Include="AnyUnit.Runner.Bootstrap" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>
