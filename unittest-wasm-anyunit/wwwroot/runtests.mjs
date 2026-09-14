@@ -14,7 +14,7 @@
 // empirically - see AnyUnit's own Runner/Platforms/browser-wasm-runner-host/Readme.md),
 // so this has to happen through Module.FS directly, before runMain().
 import { dotnet } from './_framework/dotnet.js';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -25,8 +25,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // this needs to go up one level from where this script actually runs.
 const fixturesRoot = path.join(__dirname, '..', 'fixtures');
 
+// This script's own first argument is the HOST path to write results.json to,
+// not the app's own argument - Program.cs always gets a fixed in-VFS path
+// (resultsVfsPath below) instead, so this script can read it back out of
+// Module.FS (an in-memory filesystem - File.Create inside it never touches
+// the real disk on its own, confirmed the hard way: passing the host path
+// straight through to withApplicationArguments builds a results.json that
+// looks fine in the run's own console output, then simply isn't there
+// afterward) and copy it out for real once the run is done.
+const hostResultsPath = process.argv[2];
+const resultsVfsPath = '/results.json';
+
 const dotnetInstance = await dotnet
-    .withApplicationArguments(...process.argv.slice(2))
+    .withApplicationArguments(...(hostResultsPath ? [resultsVfsPath] : []))
     .create();
 
 function mkdirp(fs, vfsDir) {
@@ -62,3 +73,13 @@ for (const name of ['Data', 'Results', 'tessdata']) {
 fs.writeFile('/versions.env', readFileSync(path.join(fixturesRoot, 'versions.env')));
 
 process.exitCode = await dotnetInstance.runMain();
+
+// Copy the in-VFS results.json back out to the real filesystem, now that the
+// run actually wrote it - see the comment above on why this can't just be
+// the app's own File.Create target path. Read unconditionally when a host
+// path was requested: a missing file here (Program.cs failing before ever
+// opening the stream) should surface as a clear ENOENT, not a silently
+// missing artifact three steps later.
+if (hostResultsPath) {
+    writeFileSync(hostResultsPath, fs.readFile(resultsVfsPath));
+}
