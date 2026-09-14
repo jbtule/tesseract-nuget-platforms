@@ -37,14 +37,30 @@ jobs:
           name: native-linux-x64
           path: stage/linux-x64
           if-no-files-found: error
+      # scripts/run-unit-tests.sh runs via `dotnet run`, not `dotnet test`:
+      # see its own comment - neither test project has an MTP/VSTest marker,
+      # so `dotnet test` used to silently restore and exit 0 without ever
+      # building or running anything.
       - name: Unit tests (against this job's freshly-built, pinned-version native libs)
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/linux-x64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+          mkdir -p anyunit-results
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj anyunit-results/Tesseract.Tests-linux-x64.json
       - name: SkiaSharp unit tests (Tesseract.CrossPlatform.SkiaSharp)
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/linux-x64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj -c Release -f net10.0
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj anyunit-results/Tesseract.Tests.SkiaSharp-linux-x64.json
+      # if: always() - a failed leg's own results.json (with the actual
+      # Fail/Error in it) is exactly what anyunit-report's consolidated
+      # summary most needs to show, not something to skip on the failure
+      # that produced it.
+      - name: Upload AnyUnit results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: anyunit-results-linux-x64
+          path: anyunit-results
+          if-no-files-found: warn
       # Only on failure: a golden-fixture mismatch only tells us the two file
       # paths in the console log, not what actually differs -- this is the
       # only way to see the real content without reproducing the exact
@@ -94,11 +110,19 @@ jobs:
       - name: Unit tests (against this job's freshly-built, pinned-version native libs)
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/linux-arm64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+          mkdir -p anyunit-results
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj anyunit-results/Tesseract.Tests-linux-arm64.json
       - name: SkiaSharp unit tests (Tesseract.CrossPlatform.SkiaSharp)
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/linux-arm64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj -c Release -f net10.0
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj anyunit-results/Tesseract.Tests.SkiaSharp-linux-arm64.json
+      - name: Upload AnyUnit results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: anyunit-results-linux-arm64
+          path: anyunit-results
+          if-no-files-found: warn
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -134,11 +158,19 @@ jobs:
       - name: Unit tests (against this job's freshly-built, pinned-version native libs)
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/osx-arm64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+          mkdir -p anyunit-results
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj anyunit-results/Tesseract.Tests-osx-arm64.json
       - name: SkiaSharp unit tests (Tesseract.CrossPlatform.SkiaSharp)
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/osx-arm64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj -c Release -f net10.0
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj anyunit-results/Tesseract.Tests.SkiaSharp-osx-arm64.json
+      - name: Upload AnyUnit results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: anyunit-results-osx-arm64
+          path: anyunit-results
+          if-no-files-found: warn
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -174,12 +206,20 @@ jobs:
         shell: bash
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/win-x64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+          mkdir -p anyunit-results
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj anyunit-results/Tesseract.Tests-win-x64.json
       - name: SkiaSharp unit tests (Tesseract.CrossPlatform.SkiaSharp)
         shell: bash
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/win-x64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj -c Release -f net10.0
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj anyunit-results/Tesseract.Tests.SkiaSharp-win-x64.json
+      - name: Upload AnyUnit results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: anyunit-results-win-x64
+          path: anyunit-results
+          if-no-files-found: warn
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -223,12 +263,20 @@ jobs:
         shell: bash
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/win-arm64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj -c Release -f net10.0
+          mkdir -p anyunit-results
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests/Tesseract.Tests.csproj anyunit-results/Tesseract.Tests-win-arm64.json
       - name: SkiaSharp unit tests (Tesseract.CrossPlatform.SkiaSharp)
         shell: bash
         run: |
           export TESSERACT_NATIVE_DIR="$PWD/stage/win-arm64/native"
-          dotnet test vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj -c Release -f net10.0
+          bash scripts/run-unit-tests.sh vendor/tesseract/src/Tesseract.Tests.SkiaSharp/Tesseract.Tests.SkiaSharp.csproj anyunit-results/Tesseract.Tests.SkiaSharp-win-arm64.json
+      - name: Upload AnyUnit results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: anyunit-results-win-arm64
+          path: anyunit-results
+          if-no-files-found: warn
       - name: Upload actual test output (only on failure, for diffing against Results/)
         if: failure()
         uses: actions/upload-artifact@v6

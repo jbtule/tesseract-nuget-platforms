@@ -64,6 +64,7 @@ jobs:
       - name: Unit tests (real Tesseract.Tests suite, under node)
         run: |
           set -euo pipefail
+          mkdir -p anyunit-results
           dotnet build unittest-wasm-anyunit/UnitTestWasmAnyUnit.csproj -c Release
           cd unittest-wasm-anyunit/bin/Release/net10.0/wwwroot
           # Not `|| true` unconditionally: AnyUnit.Runner.Bootstrap's own
@@ -82,9 +83,19 @@ jobs:
           # would otherwise abort right at the pipe, before exit_code is
           # ever checked below.
           set +e
-          node runtests.mjs | tee /tmp/unittest-wasm-anyunit.log
+          node runtests.mjs "$GITHUB_WORKSPACE/anyunit-results/Tesseract.Tests-browser-wasm.json" | tee /tmp/unittest-wasm-anyunit.log
           exit_code=${PIPESTATUS[0]}
           set -e
           if [ "$exit_code" -ne 0 ] && ! grep -qE "^ *Fail *1 *$" /tmp/unittest-wasm-anyunit.log; then
             exit "$exit_code"
           fi
+      # if: always() - same reasoning as build-native.yml's own identical step:
+      # a failing leg's results.json is exactly what the consolidated report
+      # most needs to show.
+      - name: Upload AnyUnit results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: anyunit-results-browser-wasm
+          path: anyunit-results
+          if-no-files-found: warn

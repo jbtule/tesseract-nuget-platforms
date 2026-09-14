@@ -57,10 +57,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Real 1.0.0 release from nuget.org now, not a local checkout. -->
-    <PackageReference Include="AnyUnit" Version="1.0.0" />
-    <PackageReference Include="AnyUnit.Style.Nunit" Version="1.0.0" />
-    <PackageReference Include="AnyUnit.Runner.Bootstrap" Version="1.0.0" />
+    <!-- Real 1.1.0 release from nuget.org now, not a local checkout. -->
+    <PackageReference Include="AnyUnit" Version="1.1.0" />
+    <PackageReference Include="AnyUnit.Style.Nunit" Version="1.1.0" />
+    <PackageReference Include="AnyUnit.Runner.Bootstrap" Version="1.1.0" />
   </ItemGroup>
 
   <ItemGroup>

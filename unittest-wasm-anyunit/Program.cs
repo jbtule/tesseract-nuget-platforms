@@ -17,7 +17,15 @@ internal static class Program
         var jsonOutputPath = args.Length > 0 ? args[0] : null;
         using (var jsonOutputStream = jsonOutputPath != null ? File.Create(jsonOutputPath) : null)
         {
-            return AnyUnit.Runner.Bootstrap.Runner.Run("browser-wasm", jsonOutputStream: jsonOutputStream);
+            // AnyUnit.Util.PlatformId.Current (AnyUnit 1.1+), not a hardcoded
+            // "browser-wasm" - matches AnyUnit's own browser-wasm-runner convention
+            // (Runner/Platforms/browser-wasm-runner/WasmRunAlone.cs) and keeps this
+            // leg's own Platform label real/dynamic like every native RID's, rather
+            // than a one-off literal (see Tesseract.Tests's own Program.cs for why
+            // the native side needed this same swap - a merge-collision, not a
+            // concern here with only one wasm leg, but a hardcoded label everywhere
+            // else would be the odd one out).
+            return AnyUnit.Runner.Bootstrap.Runner.Run(AnyUnit.Util.PlatformId.Current, jsonOutputStream: jsonOutputStream);
         }
     }
 }
