@@ -61,7 +61,7 @@ jobs:
       # exact same job under AnyUnit.Runner.Bootstrap instead, with no
       # internal-API reflection or headless-browser/Playwright step needed
       # (dotnet.js boots directly under node - see its own csproj comment).
-      - name: Unit tests (real Tesseract.Tests suite, under node)
+      - name: Unit tests (real Tesseract.Tests + Tesseract.Tests.SkiaSharp suite, under node)
         run: |
           set -euo pipefail
           mkdir -p anyunit-results

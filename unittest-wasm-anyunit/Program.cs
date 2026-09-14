@@ -25,7 +25,19 @@ internal static class Program
             // the native side needed this same swap - a merge-collision, not a
             // concern here with only one wasm leg, but a hardcoded label everywhere
             // else would be the odd one out).
-            return AnyUnit.Runner.Bootstrap.Runner.Run(AnyUnit.Util.PlatformId.Current, jsonOutputStream: jsonOutputStream);
+            //
+            // Named-assembly overload, not the single calling-assembly one: this
+            // assembly is "Tesseract.Tests" itself, but Tesseract.Tests.SkiaSharp's own
+            // tests now live in a real, separate, ProjectReference'd assembly of that
+            // exact name (see SkiaSharpTests/SkiaSharpTests.csproj's own comment for
+            // why) - listing both here is what makes AnyUnit discover and run that
+            // assembly's tests too, in this one process/one results.json, with each
+            // fixture still reporting under its own real assembly identity for
+            // AnyUnit.Report's merge to match against every native RID's.
+            return AnyUnit.Runner.Bootstrap.Runner.Run(
+                AnyUnit.Util.PlatformId.Current,
+                new[] { "Tesseract.Tests", "Tesseract.Tests.SkiaSharp" },
+                jsonOutputStream: jsonOutputStream);
         }
     }
 }

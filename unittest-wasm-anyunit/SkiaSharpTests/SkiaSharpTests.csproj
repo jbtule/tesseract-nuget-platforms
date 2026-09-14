@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A real, separately-compiled assembly for Tesseract.Tests.SkiaSharp's own tests under
+    wasm - not source-included into UnitTestWasmAnyUnit.csproj alongside Tesseract.Tests
+    (the previous approach), specifically so it keeps its own real assembly identity,
+    "Tesseract.Tests.SkiaSharp", matching every native RID's own separately-compiled
+    Tesseract.Tests.SkiaSharp.dll exactly.
+
+    That identity match is not cosmetic: AnyUnit.Report's own merge groups results by
+    assembly identity FIRST (ResultsFile.Add matches "A:" + Assembly.FullName), one level
+    above fixture/test identity. Confirmed for real that source-including this fixture
+    into the same assembly as Tesseract.Tests (AssemblyName forced to "Tesseract.Tests"
+    there) meant its results merged under a "Tesseract.Tests" assembly node instead -
+    anyunit-report's own HTML output showed ConvertSkiaBitmapToPixTests twice, once under
+    each assembly heading, never combined into one cross-platform view the way every other
+    fixture was.
+
+    UnitTestWasmAnyUnit's own Program.cs now discovers tests across both this assembly and
+    itself in one call (AnyUnit.Runner.Bootstrap.Runner.Run(platform, new[] { "Tesseract.
+    Tests", "Tesseract.Tests.SkiaSharp" }, ...)) - the documented way AnyUnit.Runner.
+    Bootstrap supports "a host that statically links/bundles several test assemblies
+    together (e.g. a browser-wasm build compiling in more than one project's tests)"
+    (see that overload's own XML doc). PublishTrimmed=false on the host project (already
+    set, for the identical reason the host's own comment gives) means this assembly's own
+    DLL ships whole and gets loaded at boot without needing to be referenced by name from
+    any compiled code - ProjectReference alone is enough.
+
+    References the PACKAGED Tesseract.CrossPlatform (not a ProjectReference to
+    Tesseract.csproj under a second assembly identity) - the same package
+    UnitTestWasmAnyUnit.csproj itself already references, so both assemblies share one
+    loaded "Tesseract.CrossPlatform" identity at runtime. This sidesteps the exact
+    conflict Tesseract.Tests.SkiaSharp.csproj's own comment describes for a
+    ProjectReference-based build (Tesseract.csproj can't be built under two different
+    assembly identities - "Tesseract" vs "Tesseract.CrossPlatform" - in one graph):
+    there's no second ProjectReference to Tesseract.csproj here at all.
+
+    Source-includes Tesseract.CrossPlatform.SkiaSharp's own converters and
+    Tesseract.Tests.SkiaSharp's own ConvertSkiaBitmapToPixTests.cs directly, for the
+    identical reason UnitTestWasmAnyUnit.csproj's own comment already gives for
+    Tesseract.Tests: no separately wasm-published Tesseract.CrossPlatform.SkiaSharp
+    package to reference instead, and a ProjectReference to that source project would
+    pull in ITS OWN Tesseract.csproj ProjectReference (a third build of it, under yet
+    another identity question) right back in.
+
+    No GlobalTestSetup.cs copy needed here, same reasoning UnitTestWasmAnyUnit.csproj's
+    own comment already gives for excluding Tesseract.Tests.SkiaSharp's copy of it:
+    native library search-path resolution (LibraryLoader.CustomSearchPath) is a static,
+    process-wide setting on the one shared Tesseract.CrossPlatform assembly instance both
+    this assembly and Tesseract.Tests reference - Tesseract.Tests's own [SetUpFixture]
+    already configures it for the whole process before any test in either assembly runs.
+
+    A plain class library (no OutputType/RuntimeIdentifier of its own) - it's a build-time
+    dependency of UnitTestWasmAnyUnit.csproj's own wasm executable, not a second published
+    app.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Tesseract.Tests.SkiaSharp</AssemblyName>
+    <RootNamespace>Tesseract.Tests.SkiaSharp</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Matches UnitTestWasmAnyUnit.csproj's own pinned version - see its own comment on
+         why this is hardcoded rather than left to float to whatever's newest on the feed. -->
+    <PackageReference Include="Tesseract.CrossPlatform" Version="5.5.2.200" />
+    <PackageReference Include="SkiaSharp" Version="4.152.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.WebAssembly" Version="4.152.0" />
+    <PackageReference Include="AnyUnit" Version="1.1.0" />
+    <PackageReference Include="AnyUnit.Style.Nunit" Version="1.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\vendor\tesseract\src\Tesseract.CrossPlatform.SkiaSharp\**\*.cs"
+             Exclude="
+               ..\..\vendor\tesseract\src\Tesseract.CrossPlatform.SkiaSharp\**\obj\**\*.cs;
+               ..\..\vendor\tesseract\src\Tesseract.CrossPlatform.SkiaSharp\**\bin\**\*.cs"
+             Link="TesseractSkiaSharp\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\vendor\tesseract\src\Tesseract.Tests.SkiaSharp\ConvertSkiaBitmapToPixTests.cs"
+             Link="ConvertSkiaBitmapToPixTests.cs" />
+  </ItemGroup>
+
+</Project>

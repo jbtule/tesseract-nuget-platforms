@@ -12,16 +12,18 @@
     (dotnet.js detects a non-browser JS host and boots directly - see
     Runner/Platforms/browser-wasm-runner-host/Readme.md in AnyUnit's own repo).
 
-    Source-includes Tesseract.Tests's/Tesseract.Tests.SkiaSharp's own .cs files
-    directly (not ProjectReference - confirmed the hard way that referencing
-    both together in one graph breaks: Tesseract.Tests pulls in Tesseract.Drawing,
-    which needs System.Drawing.Common, no wasm support at all; and Tesseract.
-    Tests/Tesseract.Tests.SkiaSharp need Tesseract.csproj built under two
-    different assembly identities - "Tesseract" vs "Tesseract.CrossPlatform" -
-    simultaneously, which a single build graph can't do). Same shape
-    UnitTestWasm.csproj's own comment already describes for the identical
-    reason, just for both files this time instead of only ConvertBitmapToPixTests.cs/
-    ColorTests.cs.
+    Source-includes Tesseract.Tests's own .cs files directly (not ProjectReference -
+    confirmed the hard way that referencing it breaks: Tesseract.Tests pulls in
+    Tesseract.Drawing, which needs System.Drawing.Common, no wasm support at all).
+    Same shape UnitTestWasm.csproj's own comment already describes for the identical
+    reason.
+
+    Tesseract.Tests.SkiaSharp's own tests are NOT source-included here any more -
+    see SkiaSharpTests/SkiaSharpTests.csproj (a real ProjectReference) for why: its
+    own real, separate assembly identity is what lets AnyUnit.Report's merge treat
+    it as the same assembly as every native RID's own Tesseract.Tests.SkiaSharp.dll,
+    which source-including it into this project's own "Tesseract.Tests" identity
+    (below) broke.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -52,8 +54,6 @@
          feed, which isn't necessarily this repo's own just-packed build. -->
     <PackageReference Include="Tesseract.CrossPlatform" Version="5.5.2.200" />
     <PackageReference Include="nunit" Version="4.6.1" />
-    <PackageReference Include="SkiaSharp" Version="4.152.0" />
-    <PackageReference Include="SkiaSharp.NativeAssets.WebAssembly" Version="4.152.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -66,6 +66,13 @@
   <ItemGroup>
     <NativeFileReference Include="..\stage\browser-wasm\native\tesseract.a" />
     <NativeFileReference Include="..\stage\browser-wasm\native\leptonica.a" />
+  </ItemGroup>
+
+  <!-- See SkiaSharpTests/SkiaSharpTests.csproj's own comment for why this is a real
+       ProjectReference (a real, separate assembly identity), not source-included here
+       the way Tesseract.Tests below is. -->
+  <ItemGroup>
+    <ProjectReference Include="SkiaSharpTests\SkiaSharpTests.csproj" />
   </ItemGroup>
 
   <!--
@@ -81,24 +88,6 @@
                ..\vendor\tesseract\src\Tesseract.Tests\Leptonica\ColorTests.cs;
                ..\vendor\tesseract\src\Tesseract.Tests\Program.cs"
              Link="TesseractTests\%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
-
-  <!--
-    GlobalTestSetup.cs excluded here: this project already gets the same
-    [SetUpFixture] from Tesseract.Tests's own copy above (same namespace,
-    Tesseract.Tests), so including Tesseract.Tests.SkiaSharp's own duplicate
-    would just be a second, redundant [SetUpFixture] doing the identical
-    thing (see that project's own csproj comment for why it has its own
-    copy at all - not needed once both are compiled into one assembly).
-  -->
-  <ItemGroup>
-    <Compile Include="..\vendor\tesseract\src\Tesseract.CrossPlatform.SkiaSharp\**\*.cs"
-             Exclude="
-               ..\vendor\tesseract\src\Tesseract.CrossPlatform.SkiaSharp\**\obj\**\*.cs;
-               ..\vendor\tesseract\src\Tesseract.CrossPlatform.SkiaSharp\**\bin\**\*.cs"
-             Link="TesseractSkiaSharp\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\vendor\tesseract\src\Tesseract.Tests.SkiaSharp\ConvertSkiaBitmapToPixTests.cs"
-             Link="TesseractTestsSkiaSharp\ConvertSkiaBitmapToPixTests.cs" />
   </ItemGroup>
 
   <ItemGroup>
